@@ -1,0 +1,17 @@
+createimage.o: createimage.c
+kernel.o: kernel.c common.h kernel.h scheduler.h queue.h th.h util.h \
+  tasks.c
+lock.o: lock.c common.h lock.h scheduler.h kernel.h queue.h
+process1.o: process1.c common.h syslib.h util.h
+process2.o: process2.c common.h syslib.h util.h
+process3.o: process3.c common.h syslib.h util.h
+queue.o: queue.c queue.h kernel.h common.h
+scheduler.o: scheduler.c common.h kernel.h scheduler.h queue.h util.h
+tasks.o: tasks.c
+th1.o: th1.c scheduler.h common.h kernel.h queue.h th.h util.h
+th2.o: th2.c common.h scheduler.h kernel.h queue.h lock.h th.h util.h
+th3.o: th3.c common.h scheduler.h kernel.h queue.h util.h
+th4.o: th4.c common.h scheduler.h kernel.h queue.h util.h lock.h
+util.o: util.c util.h common.h
+entry_mips.o: entry_mips.S regs.h
+syslib.o: syslib.S regs.h

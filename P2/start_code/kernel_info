@@ -1,0 +1,201 @@
+ELF Header:
+  Magic:   7f 45 4c 46 01 01 01 00 00 00 00 00 00 00 00 00 
+  Class:                             ELF32
+  Data:                              2's complement, little endian
+  Version:                           1 (current)
+  OS/ABI:                            UNIX - System V
+  ABI Version:                       0
+  Type:                              EXEC (Executable file)
+  Machine:                           MIPS R3000
+  Version:                           0x1
+  Entry point address:               0xa08002bc
+  Start of program headers:          52 (bytes into file)
+  Start of section headers:          9392 (bytes into file)
+  Flags:                             0x20001101, noreorder, 32bitmode, o32, mips3
+  Size of this header:               52 (bytes)
+  Size of program headers:           32 (bytes)
+  Number of program headers:         1
+  Size of section headers:           40 (bytes)
+  Number of section headers:         13
+  Section header string table index: 10
+
+Section Headers:
+  [Nr] Name              Type            Addr     Off    Size   ES Flg Lk Inf Al
+  [ 0]                   NULL            00000000 000000 000000 00      0   0  0
+  [ 1] .text             PROGBITS        a0800200 000060 001838 00 WAX  0   0 16
+  [ 2] .rodata.str1.4    PROGBITS        a0801a38 001898 0002c8 01 AMS  0   0  4
+  [ 3] .data             PROGBITS        a0801d00 001b60 000100 00  WA  0   0 16
+  [ 4] .ctors            PROGBITS        a0801e00 001c60 000008 00  WA  0   0  1
+  [ 5] .dtors            PROGBITS        a0801e08 001c68 000008 00  WA  0   0  1
+  [ 6] .sbss             NOBITS          a0801e10 001c70 000020 00 WAp  0   0  8
+  [ 7] .bss              NOBITS          a0801e30 001c70 000070 00  WA  0   0 16
+  [ 8] .pdr              PROGBITS        00000000 001c70 000740 00      0   0  4
+  [ 9] .comment          PROGBITS        00000000 0023b0 0000a2 00      0   0  1
+  [10] .shstrtab         STRTAB          00000000 002452 00005d 00      0   0  1
+  [11] .symtab           SYMTAB          00000000 0026b8 0008c0 10     12  54  4
+  [12] .strtab           STRTAB          00000000 002f78 000497 00      0   0  1
+Key to Flags:
+  W (write), A (alloc), X (execute), M (merge), S (strings)
+  I (info), L (link order), G (group), T (TLS), E (exclude), x (unknown)
+  O (extra OS processing required) o (OS specific), p (processor specific)
+
+There are no section groups in this file.
+
+Program Headers:
+  Type           Offset   VirtAddr   PhysAddr   FileSiz MemSiz  Flg Align
+  LOAD           0x000060 0xa0800200 0xa0800200 0x01c10 0x01ca0 RWE 0x10
+
+ Section to Segment mapping:
+  Segment Sections...
+   00     .text .rodata.str1.4 .data .ctors .dtors .sbss .bss 
+
+There is no dynamic section in this file.
+
+There are no relocations in this file.
+
+The decoding of unwind sections for machine type MIPS R3000 is not currently supported.
+
+Symbol table '.symtab' contains 140 entries:
+   Num:    Value  Size Type    Bind   Vis      Ndx Name
+     0: 00000000     0 NOTYPE  LOCAL  DEFAULT  UND 
+     1: a0800200     0 SECTION LOCAL  DEFAULT    1 
+     2: a0801a38     0 SECTION LOCAL  DEFAULT    2 
+     3: a0801d00     0 SECTION LOCAL  DEFAULT    3 
+     4: a0801e00     0 SECTION LOCAL  DEFAULT    4 
+     5: a0801e08     0 SECTION LOCAL  DEFAULT    5 
+     6: a0801e10     0 SECTION LOCAL  DEFAULT    6 
+     7: a0801e30     0 SECTION LOCAL  DEFAULT    7 
+     8: 00000000     0 SECTION LOCAL  DEFAULT    8 
+     9: 00000000     0 SECTION LOCAL  DEFAULT    9 
+    10: 00000000     0 SECTION LOCAL  DEFAULT   10 
+    11: 00000000     0 SECTION LOCAL  DEFAULT   11 
+    12: 00000000     0 SECTION LOCAL  DEFAULT   12 
+    13: 00000000     0 FILE    LOCAL  DEFAULT  ABS kernel.c
+    14: a0801d00     8 OBJECT  LOCAL  DEFAULT    3 task1
+    15: a0801d08     8 OBJECT  LOCAL  DEFAULT    3 task2
+    16: a0801d10     8 OBJECT  LOCAL  DEFAULT    3 task3
+    17: a0801d18     8 OBJECT  LOCAL  DEFAULT    3 task4
+    18: a0801d20     8 OBJECT  LOCAL  DEFAULT    3 task5
+    19: a0801d28     8 OBJECT  LOCAL  DEFAULT    3 time_switch_1
+    20: a0801d30     8 OBJECT  LOCAL  DEFAULT    3 time_switch_2
+    21: a0801d38     8 OBJECT  LOCAL  DEFAULT    3 time_switch_3
+    22: a0801d40     8 OBJECT  LOCAL  DEFAULT    3 design_review_1
+    23: a0801d48     8 OBJECT  LOCAL  DEFAULT    3 design_review_2
+    24: a0801d50     8 OBJECT  LOCAL  DEFAULT    3 design_review_3
+    25: a0801d58     8 OBJECT  LOCAL  DEFAULT    3 design_review_4
+    26: a0801d60    16 OBJECT  LOCAL  DEFAULT    3 task
+    27: 00000000     0 FILE    LOCAL  DEFAULT  ABS entry_mips.S
+    28: 00000000     0 FILE    LOCAL  DEFAULT  ABS lock.c
+    29: 00000000     0 FILE    LOCAL  DEFAULT  ABS scheduler.c
+    30: 00000000     0 FILE    LOCAL  DEFAULT  ABS th1.c
+    31: a0800644    76 FUNC    LOCAL  DEFAULT    1 print_counter
+    32: a0801e30     4 OBJECT  LOCAL  DEFAULT    7 counter.0
+    33: 00000000     0 FILE    LOCAL  DEFAULT  ABS th2.c
+    34: a0801e40     4 OBJECT  LOCAL  DEFAULT    7 shared_var
+    35: a0801e44     4 OBJECT  LOCAL  DEFAULT    7 exit_count
+    36: a0801e48     4 OBJECT  LOCAL  DEFAULT    7 init
+    37: a0801e54     4 OBJECT  LOCAL  DEFAULT    7 l
+    38: a08008f0   340 FUNC    LOCAL  DEFAULT    1 print_counter
+    39: a0801e4c     4 OBJECT  LOCAL  DEFAULT    7 counter2.0
+    40: a0801e50     4 OBJECT  LOCAL  DEFAULT    7 counter3.1
+    41: 00000000     0 FILE    LOCAL  DEFAULT  ABS th3.c
+    42: 00000000     0 FILE    LOCAL  DEFAULT  ABS th4.c
+    43: a0801d70     4 OBJECT  LOCAL  DEFAULT    3 test_line
+    44: a0801d74    21 OBJECT  LOCAL  DEFAULT    3 plane1
+    45: a0801d8c    19 OBJECT  LOCAL  DEFAULT    3 plane2
+    46: a0801da0    19 OBJECT  LOCAL  DEFAULT    3 plane3
+    47: a0801db4    21 OBJECT  LOCAL  DEFAULT    3 plane4
+    48: 00000000     0 FILE    LOCAL  DEFAULT  ABS util.c
+    49: a0801dd0     4 OBJECT  LOCAL  DEFAULT    3 screen
+    50: a0801e70     4 OBJECT  LOCAL  DEFAULT    7 line_all
+    51: a0801dd4    12 OBJECT  LOCAL  DEFAULT    3 pic
+    52: a0801e74     4 OBJECT  LOCAL  DEFAULT    7 rand_val
+    53: 00000000     0 FILE    LOCAL  DEFAULT  ABS queue.c
+    54: a080147c     8 FUNC    GLOBAL DEFAULT    1 inb
+    55: a0800a9c   264 FUNC    GLOBAL DEFAULT    1 thread11
+    56: a0801e20     8 OBJECT  GLOBAL DEFAULT    6 cpu_time
+    57: a0800e80    68 FUNC    GLOBAL DEFAULT    1 printstr
+    58: a08016c0    76 FUNC    GLOBAL DEFAULT    1 cursor_up
+    59: a08017a4    76 FUNC    GLOBAL DEFAULT    1 cursor_left
+    60: a0801d00     0 NOTYPE  GLOBAL DEFAULT    3 _fdata
+    61: a08004e4   140 FUNC    GLOBAL DEFAULT    1 block
+    62: a0801030    52 FUNC    GLOBAL DEFAULT    1 print_char
+    63: a0801318    88 FUNC    GLOBAL DEFAULT    1 reverse
+    64: a0800a60    60 FUNC    GLOBAL DEFAULT    1 thread_print
+    65: a08003ac     0 FUNC    GLOBAL DEFAULT    1 save_pcb
+    66: a0801e2c     4 OBJECT  GLOBAL DEFAULT    6 lock
+    67: a0801a38     0 NOTYPE  GLOBAL DEFAULT  ABS _etext
+    68: a0800690   308 FUNC    GLOBAL DEFAULT    1 thread2
+    69: a0809e00     0 NOTYPE  GLOBAL DEFAULT  ABS _gp
+    70: a08014c0    60 FUNC    GLOBAL DEFAULT    1 print_color
+    71: a0800570     8 FUNC    GLOBAL DEFAULT    1 unblock
+    72: a0801004    44 FUNC    GLOBAL DEFAULT    1 print_str
+    73: a0801e10     0 NOTYPE  GLOBAL DEFAULT    5 __DTOR_END__
+    74: a0801e10     4 OBJECT  GLOBAL DEFAULT    6 blocked_queue
+    75: a0801064    40 FUNC    GLOBAL DEFAULT    1 peek_screen
+    76: a0801250   104 FUNC    GLOBAL DEFAULT    1 itoa
+    77: a0801394    88 FUNC    GLOBAL DEFAULT    1 same_string
+    78: a0801848   188 FUNC    GLOBAL DEFAULT    1 printnum2
+    79: a0801454    40 FUNC    GLOBAL DEFAULT    1 bzero
+    80: a0801de0     4 OBJECT  GLOBAL DEFAULT    3 test_line
+    81: a0800360     0 FUNC    GLOBAL DEFAULT    1 get_timer
+    82: a0800dd0   176 FUNC    GLOBAL DEFAULT    1 thread14
+    83: a0801e28     4 OBJECT  GLOBAL DEFAULT    6 scheduler_count
+    84: a0800370     0 FUNC    GLOBAL DEFAULT    1 kernel_entry
+    85: a0800200   188 FUNC    GLOBAL DEFAULT    1 printnum
+    86: a0800a58     8 FUNC    GLOBAL DEFAULT    1 thread5
+    87: a0800a50     8 FUNC    GLOBAL DEFAULT    1 thread4
+    88: a08002bc   164 FUNC    GLOBAL DEFAULT    1 _stat
+    89: a0801e80    16 OBJECT  GLOBAL DEFAULT    7 ready_arr
+    90: a0801ea0     0 NOTYPE  GLOBAL DEFAULT  ABS end
+    91: a0801e14     4 OBJECT  GLOBAL DEFAULT    6 ready_queue
+    92: a08004c8    28 FUNC    GLOBAL DEFAULT    1 do_exit
+    93: a0801e18     4 OBJECT  GLOBAL DEFAULT    6 current_running
+    94: a0800590   180 FUNC    GLOBAL DEFAULT    1 clock_thread
+    95: a0801e00     0 NOTYPE  GLOBAL DEFAULT    4 __CTOR_LIST__
+    96: a0800ec4   180 FUNC    GLOBAL DEFAULT    1 print_int
+    97: a0800200     0 NOTYPE  GLOBAL DEFAULT    1 _ftext
+    98: a0801ea0     0 NOTYPE  GLOBAL DEFAULT  ABS __end
+    99: a0801498    40 FUNC    GLOBAL DEFAULT    1 rand
+   100: a0800420    20 FUNC    GLOBAL DEFAULT    1 scheduler
+   101: a0801970    96 FUNC    GLOBAL DEFAULT    1 queue_pop
+   102: a0801538   124 FUNC    GLOBAL DEFAULT    1 print_location
+   103: a08010f0   136 FUNC    GLOBAL DEFAULT    1 scroll
+   104: a08013ec   104 FUNC    GLOBAL DEFAULT    1 bcopy
+   105: a08012b8    96 FUNC    GLOBAL DEFAULT    1 itohex
+   106: a08014fc    60 FUNC    GLOBAL DEFAULT    1 println_color
+   107: a0801484     8 FUNC    GLOBAL DEFAULT    1 outb
+   108: a0801ea0     0 NOTYPE  GLOBAL DEFAULT  ABS __bbs_end
+   109: a08017f0    88 FUNC    GLOBAL DEFAULT    1 delay1s
+   110: a0801e10     0 NOTYPE  GLOBAL DEFAULT  ABS __bss_start
+   111: a08007c4   300 FUNC    GLOBAL DEFAULT    1 thread3
+   112: a08003bc    80 FUNC    GLOBAL DEFAULT    1 lock_acquire
+   113: a080148c    12 FUNC    GLOBAL DEFAULT    1 srand
+   114: a08003b0    12 FUNC    GLOBAL DEFAULT    1 lock_init
+   115: a0801910    96 FUNC    GLOBAL DEFAULT    1 queue_push
+   116: a080040c    12 FUNC    GLOBAL DEFAULT    1 lock_release
+   117: a0800434   148 FUNC    GLOBAL DEFAULT    1 do_yield
+   118: a080170c    76 FUNC    GLOBAL DEFAULT    1 cursor_down
+   119: a0801e08     0 NOTYPE  GLOBAL DEFAULT    4 __CTOR_END__
+   120: a0800f78   140 FUNC    GLOBAL DEFAULT    1 print_hex
+   121: a0800cf8   216 FUNC    GLOBAL DEFAULT    1 thread13
+   122: a0800ba4   340 FUNC    GLOBAL DEFAULT    1 thread12
+   123: a0801e08     0 NOTYPE  GLOBAL DEFAULT    5 __DTOR_LIST__
+   124: a08019e4    52 FUNC    GLOBAL DEFAULT    1 queue_size
+   125: a0801178   132 FUNC    GLOBAL DEFAULT    1 delay
+   126: a0801758    76 FUNC    GLOBAL DEFAULT    1 cursor_right
+   127: a08003ac     0 FUNC    GLOBAL DEFAULT    1 scheduler_entry
+   128: a08015b4   268 FUNC    GLOBAL DEFAULT    1 printint
+   129: a0801e90    16 OBJECT  GLOBAL DEFAULT    7 blocked_arr
+   130: a0801e10     0 NOTYPE  GLOBAL DEFAULT  ABS _edata
+   131: a0801ea0     0 NOTYPE  GLOBAL DEFAULT  ABS _end
+   132: a0801e1c     4 OBJECT  GLOBAL DEFAULT    6 recorded_time
+   133: a0800578    20 FUNC    GLOBAL DEFAULT    1 blocked_tasks
+   134: a08011fc    84 FUNC    GLOBAL DEFAULT    1 atoi
+   135: a0801370    36 FUNC    GLOBAL DEFAULT    1 strlen
+   136: a0801e60     4 OBJECT  GLOBAL DEFAULT    7 len
+   137: a080108c   100 FUNC    GLOBAL DEFAULT    1 clear_screen
+   138: a0801e10     0 NOTYPE  GLOBAL DEFAULT  ABS _fbss
+   139: a08019d0    20 FUNC    GLOBAL DEFAULT    1 queue_init
+
+No version information found in this file.

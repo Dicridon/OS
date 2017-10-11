@@ -1,0 +1,63 @@
+- What do I need:
+	- The structure of PCB
+	  - process type
+	  - process state
+	  - contents of needed registers: MIPS registers specified in regs.h
+		- You should consider following registers:
+		  - $v0-$v1(2-4)
+		  - $a0-$a3(4-7)
+		  - $s0-$s7(16-23)(must be saved if used, fp and ra, too)
+		  - $gp(28)
+		  - $sp(29)
+		  - $fp(30)(staled)
+		  - $ra(31)
+	  - stack pointers(base, top)
+	  - pid
+	  - process name
+	  - process virtual address
+	  - process virtual memory size
+	- Location of PCB
+	  - the kernel should have a PCB table, scheduler choose tasks from this table and push the chosen tasks in its queues. This table is the key to save and store PCBs.
+	- How to initilize a PCB (kernel.c)
+	  - why is task and PCB associated: information of a task in stored in PCB
+	  - which registers should be set: 
+	  - where is the task: according its virtual address, it can be found.
+	  - how to set up stack, stack size(the total stack may start at 0xa0840000 up to 0xa0860000), stack size for each task
+	  - where is the PCB: kernel will maintain it
+	- scheduler
+	  - How to organize tasks being scheduled? I will use a FIFO
+	  - how to select the next task? For now, it just pick out sequentially
+	- shedule_entry() 
+	  - locate the PCB, restore the PCB
+	  - when is invoked: 
+		- exited, 
+		- blocked(then wait to be ready), 
+		- yield(being ready, wait to be executed, send the current running thread to the end of the running queue
+	- Save PCB:
+	  - what to save
+	  - registers $\to$ memory
+	- Restore PCB:
+	  - memory $\to$ Registers
+	  - schedule_entry
+    - Mutual lock:
+	  - lock_init
+	  - lock_acquire
+	  - lock_release
+
+
+- Extral information:
+  yield, exit and block will call scheduler and scheduler will save PCB for current process(if necessary) and choose a proper task from its ready queue to run
+
+- In kernel.c
+  - initilize queues for scheduler
+  - maintain a PCB table(mentioned in textbook and XV6 source code)
+  - 
+- In entry.S: 
+  - scheduler_entry: find the entry point of function, call it, nothing so magic.
+  - save_pcb: in textbook, it must save registers, stack pointers, so it should be called in scheduler. Caller may change the sp pointers, be careful.
+ 
+- In kernel.h:
+  - there is a variable called current_running, commented taht scheduler.c and entry.S may access
+
+- In syslib.S
+  - the li $8, 0xa0800490 is the address of kernel\_entry in entry\_mips.S, keep them the same
