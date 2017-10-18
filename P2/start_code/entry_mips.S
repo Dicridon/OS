@@ -60,6 +60,7 @@ scheduler_entry:
 	lw s6, 32(t0)
 	lw s7, 36(t0)
 	lw fp, 40(t0)
+	
 	jr ra
 	nop
 	

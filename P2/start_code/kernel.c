@@ -71,6 +71,7 @@ void _stat(void){
     b_q.pcbs = blocked_arr;
     blocked_queue = &b_q;
 
+
     /* Initialize the PCBs and the ready queue */
     /* TODO */
     /* need student add */

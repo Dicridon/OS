@@ -52,8 +52,6 @@ typedef struct context{
 typedef struct pcb {
     /* need student add */
     /* TODO */
-
-
     uint32_t pid;
     process_state pstate;
     context_t context;
