@@ -1,0 +1,38 @@
+entry.S:/* TODO: Test current_running->nested_count, clobbering only eflags */
+entry.S~:/* TODO: Test current_running->nested_count, clobbering only eflags */
+#interrupt.c#:    ASSERT2(current_running->nested_count == 0,
+#interrupt.c#:    current_running->nested_count++;
+#interrupt.c#:    current_running->nested_count--;
+#interrupt.c#:    current_running->user_tf.regs[2] = ret_val;
+#interrupt.c#:    current_running->user_tf.cp0_epc = current_running->user_tf.cp0_epc + 4;
+#interrupt.c#:    ASSERT2(current_running->nested_count == 0, "Wrong nest count at B");
+#interrupt.c#:    current_running->nested_count += (current_running == 0);
+#interrupt.c#:    current_running->status = READY;
+interrupt.c:    ASSERT2(current_running->nested_count == 0,
+interrupt.c:    current_running->nested_count++;
+interrupt.c:    current_running->nested_count--;
+interrupt.c:    current_running->user_tf.regs[2] = ret_val;
+interrupt.c:    current_running->user_tf.cp0_epc = current_running->user_tf.cp0_epc + 4;
+interrupt.c:    ASSERT2(current_running->nested_count == 0, "Wrong nest count at B");
+interrupt.c:    current_running->nested_count += (current_running == 0);
+interrupt.c~:    ASSERT2(current_running->nested_count == 0,
+interrupt.c~:    current_running->nested_count++;
+interrupt.c~:    current_running->nested_count--;
+interrupt.c~:    current_running->user_tf.regs[2] = ret_val;
+interrupt.c~:    current_running->user_tf.cp0_epc = current_running->user_tf.cp0_epc + 4;
+interrupt.c~:    ASSERT2(current_running->nested_count == 0, "Wrong nest count at B");
+scheduler.c:    current_running->status = READY;
+scheduler.c:     ++current_running->entry_count;
+scheduler.c:     current_running->deadline = get_timer()*100 + milliseconds;
+scheduler.c:     current_running->status = SLEEPING;
+scheduler.c:     current_running->status = EXITED;
+scheduler.c:     current_running->status = BLOCKED;
+scheduler.c:     pid = current_running->pid;
+scheduler.c~:     ++current_running->entry_count;
+scheduler.c~:     current_running->status = EXITED;
+scheduler.c~:     current_running->status = BLOCKED;
+scheduler.c~:     pid = current_running->pid;
+sync.c:	ASSERT(current_running->nested_count);
+sync.c:    current_running->blocking_lock = (void*)l;
+sync.c:          current_running->blocking_lock = NULL;
+sync.c:    current_running->blocking_lock = NULL;

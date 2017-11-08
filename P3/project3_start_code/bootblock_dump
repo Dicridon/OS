@@ -1,0 +1,45 @@
+
+bootblock:     file format elf32-tradlittlemips
+
+Disassembly of section .text:
+
+a0800000 <_ftext>:
+	...
+a0800030:	3c08a080 	lui	t0,0xa080
+a0800034:	8d080090 	lw	t0,144(t0)
+a0800038:	3c04a080 	lui	a0,0xa080
+a080003c:	8c840094 	lw	a0,148(a0)
+a0800040:	24050200 	li	a1,512
+a0800044:	3c06a080 	lui	a2,0xa080
+a0800048:	0100f809 	jalr	t0
+a080004c:	8cc6009c 	lw	a2,156(a2)
+a0800050:	3c08a080 	lui	t0,0xa080
+a0800054:	8d080098 	lw	t0,152(t0)
+a0800058:	0100f809 	jalr	t0
+a080005c:	00000000 	nop
+a0800060:	03e00008 	jr	ra
+a0800064:	00000000 	nop
+	...
+a0800070:	80000170 	lb	zero,368(zero)
+	...
+Disassembly of section .data:
+
+a0800090 <_fdata>:
+a0800090:	8007b1a8 	lb	a3,-20056(zero)
+
+a0800094 <kernel>:
+a0800094:	a0800200 	sb	zero,512(a0)
+
+a0800098 <kernel_main>:
+a0800098:	a0800200 	sb	zero,512(a0)
+
+a080009c <os_size>:
+	...
+Disassembly of section .ctors:
+
+a0800100 <__CTOR_LIST__>:
+	...
+Disassembly of section .dtors:
+
+a0800108 <__DTOR_LIST__>:
+	...
