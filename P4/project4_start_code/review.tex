@@ -1,0 +1,97 @@
+
+\documentclass{article}
+\usepackage{times}
+\usepackage[a4paper, top=2.5cm, bottom=2.5cm, left=2.5cm, right=2.5cm]{geometry}
+\title{Syncronization primitives-IPC}
+\date{November 19, 2017}
+\begin{document}
+\maketitle
+\section*{All the operation should only be performed in kernel state}
+\section{spawn, kill and wait}
+\begin{enumerate}
+\item spawn:
+  \begin{enumerate}
+  \item enter\_critical, process spawning should not be interrupted.
+  \item find an unused slot in the pcb table, take the index plus one as pid
+  \item find target process information in files table in files.c
+  \item initialize pcb of this process
+  \item in files.c, we may find information for entry point, task type. store them in a task\_info structure and pass it to initialize\_pcb
+  \item leave\_critical. Scheduling is not necessary
+  \end{enumerate}
+\item do\_wait:
+  \begin{enumerate}
+  \item enter\_critical
+  \item  mark target process's status as blocked(proper?).\\
+    we may need to add a wait\_queue field to pcb structure. Each process should maintain a wait queue. Processes in this queue are the ones waiting for this process to terminate. Once this process is killed or terminates, release all the process from this queue. So function exit should be changed.
+  \item put this process to a wait queue
+  \end{enumerate}
+  \item do\_kill:
+  \begin{enumerate}
+  \item enter\_critical
+  \item mark target process's status as EXITED so that the slot of this process in pcb can be used by other processes.
+  \item release its stack:(seems there is no efficient way to restore stack space)
+  \item release all the locks it holds.(how to find all the lock a process has held)
+  \item leave\_critical
+  \end{enumerate}
+\end{enumerate}
+\section{Syncronization primitives}
+all the operation except init should not interrupted.
+\begin{enumerate}
+\item Condition variables
+  \begin{description}
+  \item[structure] 
+    \begin{enumerate}
+    \item only a blocked queue is needed. Maybe some debug information could be added.
+    \end{enumerate}
+  \item[operation]
+    all the operation should not be interrupted
+    \begin{enumerate}
+    \item init: initialize the wait queue in the condition vairable
+    \item wait: wait for a condition variable, relaese the lock the task holds. When a task is finalliy unblock, reacquire the lock held before.
+    \item signal: unblock only one process from condition variable's wait queue
+    \item broadcast: unblock all the processes from condition variable's wait queue
+    \end{enumerate}
+  \end{description}
+\item semaphore
+  \begin{description}
+  \item [structure]
+    \begin{enumerate}
+    \item an interger as semaphore counter
+    \item a blocked queue is needed as well
+    \end{enumerate}
+  \item[operation]
+    \begin{enumerate}
+    \item init: initialize a semaphore with given value, which should be greater or equal to zero and initialize its blocked queue
+    \item up: increase semaphore value by one, if the value before increment is zero, unblock a task from blocked queue.
+    \item down: decrease semaphore value by ones if the value before decrement is not already zero, or block current process.
+    \end{enumerate}
+  \end{description}
+\item barrier
+  \begin{description}
+  \item[structure:]
+    \begin{enumerate}
+      \item an integer \em target \em indicating number of total tasks to wait
+      \item an integer \em blocked \em counting tasks already blocked
+        \item a blocked queue is need as well
+    \end{enumerate}
+  \end{description}
+    \begin{description}
+  \item[operation:]
+    \begin{enumerate}
+      \item init: initialize \em target \em with an integer, which should be positive
+      \item wait: if \em blocked \em equals to \em target-1\em, don not block current task,  unblock all the tasks in blocked queue and set \em blocked \em to 0, or block current task.
+    \end{enumerate}
+  \end{description}
+\end{enumerate}
+\section{mailbox}
+\begin{description}
+\item[structure:]
+  \begin{enumerate}
+  \item name: the name of this mail box
+  \item users: record the number of tasks using this mailbox. If it is zero, restore this mail box
+    \item used: whether this mail box is used or not.
+  \end{enumerate}
+\end{description}
+\end{document}
+  
+ 
