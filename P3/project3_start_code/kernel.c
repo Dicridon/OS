@@ -102,7 +102,7 @@ static void initialize_pcb(pcb_t *p, pid_t pid, struct task_info *ti)
 //	p->user_tf.cp0_epc = ti->entry_point;
 //	p->kernel_tf.cp0_epc = ti->entry_point;
     }
-    p->priority = pid*10;
+    p->priority = pid*100;
     p->deadline = 0xabcdef;
 }
 

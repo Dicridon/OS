@@ -20,7 +20,7 @@ void clock_thread(void)
         printf(24, 50, "Time (in seconds) : %d",
 				(int) do_gettimeofday());
             //   (int) do_gettimeofday() / 1000);
-		print_status();
+//		print_status();
         do_yield();
     }
 }

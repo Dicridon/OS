@@ -12,7 +12,7 @@
 #include "syslib.h"
 
 
-#define  FIFO 1
+#define  FIFO (0)
 
 pcb_t *current_running;
 node_t ready_queue;
@@ -22,7 +22,7 @@ volatile uint64_t time_elapsed;
 
 /* TODO:wake up sleeping processes whose deadlines have passed */
 void check_sleeping(){
-    uint64_t current_time = get_timer();
+    uint64_t current_time = do_gettimeofday();
     node_t *pp;
     pcb_t *temp;
 
@@ -160,6 +160,6 @@ void do_setpriority(priority_t priority){
 }
 
 uint64_t get_timer(void) {
-     return do_gettimeofday();
+     return do_gettimeofday()*150000000;
 }
 

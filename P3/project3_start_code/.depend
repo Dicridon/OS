@@ -8,8 +8,8 @@ philosophers.o: philosophers.c
 print.o: print.c print.h
 printf.o: printf.c printf.h
 printk.o: printk.c printf.h print.h
-process1.o: process1.c common.h syslib.h util.h printf.h
-process2.o: process2.c common.h syslib.h util.h printf.h
+process1.o: process1.c printf.h
+process2.o: process2.c printf.h
 queue.o: queue.c common.h queue.h
 scheduler.o: scheduler.c common.h interrupt.h queue.h printf.h \
   scheduler.h util.h syslib.h
@@ -18,7 +18,7 @@ sync.o: sync.c common.h interrupt.h queue.h scheduler.h sync.h util.h \
 syslib.o: syslib.c common.h syslib.h util.h
 tasks.o: tasks.c scheduler.h common.h queue.h th.h
 th1.o: th1.c common.h kernel.h scheduler.h queue.h th.h util.h printf.h
-th2.o: th2.c
+th2.o: th2.c kernel.h common.h scheduler.h queue.h
 util.o: util.c util.h common.h
 bootblock.o: bootblock.S
 entry.o: entry.S asm.h regs.h cp0regdefs.h
