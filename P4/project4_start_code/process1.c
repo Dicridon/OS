@@ -1,35 +1,51 @@
+/* Just "flies a plane" over the screen. */
 #include "common.h"
 #include "syslib.h"
 #include "util.h"
 #include "printf.h"
 
-void SunQuan(void)
+#define ROWS 4
+#define COLUMNS 18
+
+static char picture[ROWS][COLUMNS + 1] = {
+    "     ___       _  ",
+    " | __\\_\\_o____/_| ",
+    " <[___\\_\\_-----<  ",
+    " |  o'            "
+};
+
+static void draw(int loc_x, int loc_y, int plane);
+
+void __attribute__((section(".entry_function"))) _start(void)
 {
+    int loc_x = 60, loc_y = 1;
+    /* Extra Credit *
+    int  count = 0;
+    unsigned int pid,pri;*/
 
-    mbox_t pub = mbox_open("SunQuan-Publish-PID");
-
-    pid_t myPid = getpid();
-
-    /* Send PID twice, once for LiuBei,
-     * and once for the CaoCao
-     */
-    mbox_send(pub, &myPid, sizeof(pid_t));
-    mbox_send(pub, &myPid, sizeof(pid_t));
-
-    /* Find LiuBei's PID */
-    mbox_t sub = mbox_open("LiuBei-Publish-PID");
-    for(;;){
-	pid_t liubei;
-	mbox_recv(sub, &liubei, sizeof(pid_t));
-
-	printf(1,1, "SunQuan (%d): I'm waiting for Liubei(%d)               ", pub, sub);
-
-	wait(liubei);
-
-	printf(1,1, "SunQuan(%d): I'm coming to save you, LiuBei(%d)!", pub, sub);
-
-	sleep(1000);
-	spawn("LiuBei");
-	mbox_send(pub, &myPid, sizeof(pid_t));
+    while (1) {
+        /* erase plane */
+        draw(loc_x, loc_y, FALSE);
+        loc_x -= 1;
+        if (loc_x < -20) {
+            loc_x = 80;
+        }
+        /* draw plane */
+        draw(loc_x, loc_y, TRUE);
+        sleep(50);
     }
+}
+
+/* draw plane */
+static void draw(int loc_x, int loc_y, int plane)
+{
+    int i, j;
+
+	if (plane == TRUE)
+		for(i = 0; i < ROWS; ++i)
+			printf(loc_y + i, loc_x, "%s", picture[i]);
+	else
+		for(i = 0; i < ROWS; ++i)
+			printf(loc_y + i, loc_x, "%s", "                        ");
+
 }

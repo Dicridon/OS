@@ -104,7 +104,7 @@ void condition_wait(lock_t * m, condition_t * c){
     current_running->status = BLOCKED;
     block(&c->wait_queue);
 
-    scheduler_entry();
+//    scheduler_entry();
 
     lock_acquire_helper(m);
     leave_critical();
