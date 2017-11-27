@@ -62,7 +62,7 @@ void __attribute__((section(".entry_function"))) _start(void)
 	init_mbox();
 
 	do_spawn("init");
-	printf(1, 1, "21:40");
+	printf(1, 1, "24:37");
 	/* Schedule the first task */
 	enter_critical();
 	scheduler_entry();
@@ -76,7 +76,7 @@ static uint32_t *stack_new()
 	static uint32_t next_stack = 0xa0f00000;
 
 	next_stack += 0x10000;
-	ASSERT(next_stack <= 0xa1000000);
+	ASSERT(next_stack <= 0xa2000000);
 	return (uint32_t *) next_stack;
 }
 
@@ -87,6 +87,7 @@ static void initialize_pcb(pcb_t *p, pid_t pid, struct task_info *ti)
     p->task_type = ti->task_type;
     p->priority = 1;
     p->status = FIRST_TIME;
+    printf(12, 20, "initializing %x", ti->entry_point);
     switch (ti->task_type) {
     case KERNEL_THREAD:
 	p->kernel_tf.regs[29] = (uint32_t)stack_new();
@@ -101,8 +102,7 @@ static void initialize_pcb(pcb_t *p, pid_t pid, struct task_info *ti)
 	ASSERT(FALSE);
     }
     p->kernel_tf.regs[31] = (uint32_t) first_entry;
-//    p->kernel_tf.regs[31] = p->entry_point;
-//    printf(8, 1, "ra: %x", p->kernel_tf.regs[31]);
+
     // customization
     queue_init(&p->wait_queue);
     p->kernel_tf.cp0_status = 0x00008001;
@@ -303,10 +303,12 @@ static int do_kill(pid_t pid)
   else if(pid >= 32 || pid <= 0)
       return -1;
 
-
+  printf(4, 1, "killing %d at %x", pid, pcb[pid-1].entry_point);
   pcb[pid-1].status = EXITED;
   // unblock_all(&pcb[pid-1].wait_queue);
+  int i = 1;
   while(!is_empty(&pcb[pid-1].wait_queue)){
+      printf(5, i++, "K");
       pcb_t* ready_node = (pcb_t*)dequeue(&pcb[pid-1].wait_queue);
       ready_node->status = READY;
       enqueue(&ready_queue, (node_t*)ready_node);
@@ -315,10 +317,14 @@ static int do_kill(pid_t pid)
   // release all the mailboxes this process uses
   int mbox;
   for(mbox = 0; mbox < 32; mbox++){
-      if(pcb[pid].boxes[mbox] == 1){
+      if(pcb[pid-1].boxes[mbox] == 1){
 	  do_mbox_close(mbox);
       }
   }
+
+  // move this node from any queue it is in
+  pcb[pid-1].node.prev->next = pcb[pid-1].node.next;
+  pcb[pid-1].node.next->prev = pcb[pid-1].node.prev;
   
   return -1;
 }
@@ -332,11 +338,11 @@ static int do_wait(pid_t pid)
 
   enter_critical();
   current_running->status = BLOCKED;
-  enqueue(&pcb[pid].wait_queue, (node_t*)current_running);
+  enqueue(&pcb[pid-1].wait_queue, (node_t*)current_running);
   scheduler_entry();
 
   // not necessary
-  leave_critical();
+//  leave_critical();
   return -1;
 }
 

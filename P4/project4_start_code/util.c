@@ -200,13 +200,13 @@ int strcpy(char* dest, const char* sour){
     int len_dest = strlen(dest) + 1;
     int len_sour = strlen(sour) + 1;
     
-    if(len_dest < len_sour)
-	return -1;
-    else{
-	int i;
-	for(i = 0; i < len_dest; i++)
-	    dest[i] = sour[i];
-    }
+//    if(len_dest < len_sour)
+//	return -1;
+//    else{
+    int i;
+    for(i = 0; i < len_dest; i++)
+	dest[i] = sour[i];
+	//  }
     return 0;
 }
 

@@ -19,17 +19,16 @@ void LiuBei(void)
 
     /* Find sunquan's PID */
     mbox_t sub = mbox_open("SunQuan-Publish-PID");
-
     for(;;)
 	{
 	    pid_t aramis;
 	    mbox_recv(sub, &aramis, sizeof(pid_t));
 
-	    printf(2,1, "LiuBei(%d): I'm waiting for SunQuan         ", myPid);
+	    printf(2,1, "LiuBei(%d): I'm waiting for SunQuan(%d)         ", pub, sub);
 
 	    wait(aramis);
 
-	    printf(2,1, "LiuBei(%d): I'm coming to save you, SunQuan!", myPid);
+	    printf(2,1, "LiuBei(%d): I'm coming to save you, SunQuan(%d)!", pub, sub);
 
 	    sleep(1000);
 	    spawn("SunQuan");

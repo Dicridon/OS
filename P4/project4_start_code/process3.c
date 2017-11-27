@@ -31,20 +31,22 @@ void CaoCao(void)
     switch( myRand % 2 )
     {
       case 0:
-        printf(8, 1, "CaoCao(%d): I will kill SunQuan (%d)!  ", myPid, sunquan);
+        printf(8, 1, "CaoCao(%d): I will kill SunQuan (%d)!  ", myPid, subSunQuan);
         sleep(1000);
-        printf(1,1, "WWWWWXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX ");
+        printf(1,1, "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX ");
         kill( sunquan );
+	printf(3, 1, "SunQuan killed");
         mbox_recv(subSunQuan, &sunquan, sizeof(pid_t));
-        printf(8, 1, "CaoCao(%d): Oops! SunQuan(%d) lives!                 ", myPid, sunquan);
+        printf(8, 1, "CaoCao(%d): Oops! SunQuan(%d) lives!                 ", myPid, subSunQuan);
         break;
       case 1:
-        printf(9, 1, "CaoCao(%d): I will kill LiuBei(%d)! ", myPid, liubei);
+        printf(9, 1, "CaoCao(%d): I will kill LiuBei(%d)! ", myPid, subLiuBei);
         sleep(1000);
-        printf(2,1, "MMMMMXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX ");
+        printf(2,1, "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX ");
         kill( liubei );
+	printf(3, 1, "LiuBei killed");
         mbox_recv(subLiuBei, &liubei, sizeof(pid_t));
-        printf(10, 1, "CaoCao(%d): Oops! LiuBei(%d) is alive again! ", myPid, liubei);
+        printf(10, 1, "CaoCao(%d): Oops! LiuBei(%d) is alive again! ", myPid, subLiuBei);
         break;
     }
 

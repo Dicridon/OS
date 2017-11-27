@@ -72,56 +72,42 @@ void init_mbox(void)
 mbox_t do_mbox_open(const char *name)
 {
     (void)name;
-    // debug, delete later
-    static int boxxxxx = 0;
-
-
-    // real code
     /* TODO */
     mbox_t i;
     char* boxname = name;
-    mbox_t empty_box = boxxxxx++;
+    mbox_t empty_box = 0;
 
     if(name == '\0')
 	return -1;
 
-//    print_str(7, 1, "openning mailbox");
-//    print_hex(8, 1, (int)current_running->entry_point);
-//    print_int(9, 1, (int)current_running->nested_count);
-//    print_str(10, 1, "looking for a mailbox");
 
     for(i = 0; i < MAX_MBOXEN; i++){
-	if(MessageBoxen[i].unused)
-	    empty_box = i;
-
-
-	// I thought this block is wrong
-	// but the problem should be in the block below line 109
 	if(same_string(MessageBoxen[i].name, boxname)){   
 	    MessageBoxen[i].number_of_users += 1;
-	    print_str(11, 1, "existing box found         ");
 	    return i;
+	}	
+    }
+    
+
+    // opened box not found
+    for(i = 0; i < MAX_MBOXEN; i++){
+	if(MessageBoxen[i].unused){
+	    empty_box = i;
+	    break;
 	}
     }
-//    enter_critical();
 
     lock_acquire(&MessageBoxen[empty_box].access_lock);
-
 
     MessageBoxen[empty_box].unused = 0;
     MessageBoxen[empty_box].number_of_users = 1;
 
-
-    strcpy(MessageBoxen[empty_box].name, name);
-    
+    bcopy(name, MessageBoxen[empty_box].name, strlen(name));
     
     // add this box to current_running's box list
     current_running->boxes[empty_box] = 1;
-    print_str(11, 1, "an unused box found     ");
     lock_release(&MessageBoxen[empty_box].access_lock);
-//    print_str(11, 1, "leaving openning    ");
-//    leave_critical();
-    return i;
+    return empty_box;
 }
 
 /* Closes a message box
@@ -155,7 +141,16 @@ int do_mbox_is_full(mbox_t mbox)
     /* TODO */
     if(mbox >= MAX_MBOXEN || mbox < 0)
 	ASSERT(0);
-    return !(MessageBoxen[mbox].read_letter + MAX_MBOX_LENGTH == MessageBoxen[mbox].write_letter);
+    return (MessageBoxen[mbox].read_letter + MAX_MBOX_LENGTH == MessageBoxen[mbox].write_letter);
+}
+
+int do_mbox_is_empty(mbox_t mbox)
+{
+    (void)mbox;
+    /* TODO */
+    if(mbox >= MAX_MBOXEN || mbox < 0)
+	ASSERT(0);
+    return (MessageBoxen[mbox].read_letter == MessageBoxen[mbox].write_letter);
 }
 
 /* Enqueues a message onto
@@ -183,36 +178,24 @@ void do_mbox_send(mbox_t mbox, void *msg, int nbytes)
     if(nbytes < 0 || nbytes > MAX_MESSAGE_LENGTH )
 	return;
     enter_critical();
-    if(MessageBoxen[mbox].full)
+    if(do_mbox_is_full(mbox))
 	block(&MessageBoxen[mbox].write_wait_queue);
     leave_critical();
 
 
-    print_hex(1, 1, current_running->entry_point);
-    print_str(2, 1, "sending a letter");    
-    
     lock_acquire(&MessageBoxen[mbox].access_lock);
-
 
     int i;
     for(i = 0; i < nbytes && i < MAX_MESSAGE_LENGTH; i++)
 	MessageBoxen[mbox].letters[MessageBoxen[mbox].write_letter % MAX_MBOX_LENGTH].message[i] = ((char*)msg)[i];
-    MessageBoxen[mbox].letters[MessageBoxen[mbox].write_letter % MAX_MBOX_LENGTH].message[i] = '\0';
+
 
     MessageBoxen[mbox].write_letter += 1;
-    if(MessageBoxen[mbox].write_letter == MessageBoxen[mbox].read_letter + MAX_MBOX_LENGTH)
-	MessageBoxen[mbox].full = 1;
-    // once we arrive here, we must have written a letter
-    // the mailbox can not be empty 
-    MessageBoxen[mbox].empty = 0;  
-    /*
-      unblock one task from wati queue
-     */
-
+    
     lock_release(&MessageBoxen[mbox].access_lock);
 
     enter_critical();
-    if(!is_empty(&MessageBoxen[mbox].read_wait_queue))
+    while(!is_empty(&MessageBoxen[mbox].read_wait_queue))
 	unblock((pcb_t*)dequeue(&MessageBoxen[mbox].read_wait_queue));
     leave_critical();
 }
@@ -244,7 +227,7 @@ void do_mbox_recv(mbox_t mbox, void *msg, int nbytes)
 	return;
 
     enter_critical();
-    if(MessageBoxen[mbox].empty)
+    if(do_mbox_is_empty(mbox))
 	block(&MessageBoxen[mbox].read_wait_queue);
     leave_critical();
     
@@ -253,22 +236,14 @@ void do_mbox_recv(mbox_t mbox, void *msg, int nbytes)
     int i;
     for(i = 0; i < nbytes && i < MAX_MESSAGE_LENGTH; i++)
 	((char*)msg)[i] = MessageBoxen[mbox].letters[MessageBoxen[mbox].read_letter % MAX_MBOX_LENGTH].message[i];
-    ((char*)msg)[i] = '\0';
+
 
     MessageBoxen[mbox].read_letter += 1;
-    if(MessageBoxen[mbox].read_letter == MessageBoxen[mbox].write_letter)
-	MessageBoxen[mbox].empty = 1;
-    // when we arrive here, we must have taken one letter
-    // the mailbox can not be full
-    MessageBoxen[mbox].full = 0;
-    /*
-      unblock one task from wati queue
-     */
 
     lock_release(&MessageBoxen[mbox].access_lock);
     
     enter_critical();
-    if(!is_empty(&MessageBoxen[mbox].write_wait_queue))
+    while(!is_empty(&MessageBoxen[mbox].write_wait_queue))
 	unblock((pcb_t*)dequeue(&MessageBoxen[mbox].write_wait_queue));
     leave_critical();
 }
