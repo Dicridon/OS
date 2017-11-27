@@ -14,7 +14,6 @@ void LiuBei(void)
   mbox_send(pub, &myPid, sizeof(pid_t));
   mbox_send(pub, &myPid, sizeof(pid_t));
 
-
   /* Find sunquan's PID */
   mbox_t sub = mbox_open("SunQuan-Publish-PID");
 

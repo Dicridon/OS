@@ -1,4 +1,4 @@
-`/* Author(s): <Your name here>
+/* Author(s): <Your name here>
   * COS 318, Fall 2013: Project 3 Pre-emptive Scheduler
   * Defines the process scheduler for the kernel.
   */
@@ -72,6 +72,7 @@ typedef struct pcb {
     void* blocking_lock;
 
     node_t wait_queue;
+    mbox_t boxes[32];
 }pcb_t;
 
 extern node_t ready_queue;

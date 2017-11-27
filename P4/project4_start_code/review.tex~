@@ -17,7 +17,8 @@
   \item in files.c, we may find information for entry point, task type. store them in a task\_info structure and pass it to initialize\_pcb
   \item leave\_critical. Scheduling is not necessary
   \end{enumerate}
-\item do\_wait:
+\item do\_wait:\\
+  We do not need to concern about what if a process waits on several processes, which is impossible. Once a process decides to wait on a process, it is blocked.
   \begin{enumerate}
   \item enter\_critical
   \item  mark target process's status as blocked(proper?).\\
@@ -30,6 +31,8 @@
   \item mark target process's status as EXITED so that the slot of this process in pcb can be used by other processes.
   \item release its stack:(seems there is no efficient way to restore stack space)
   \item release all the locks it holds.(how to find all the lock a process has held)
+  \item release all the processes in its wait queue
+  \item remove this process from any queue it is in.
   \item leave\_critical
   \end{enumerate}
 \end{enumerate}
@@ -80,15 +83,33 @@ all the operation except init should not interrupted.
       \item init: initialize \em target \em with an integer, which should be positive
       \item wait: if \em blocked \em equals to \em target-1\em, don not block current task,  unblock all the tasks in blocked queue and set \em blocked \em to 0, or block current task.
     \end{enumerate}
-  \end{description}
+    \end{description}
+  \item consequences of enabling timer interrupt
+    \begin{description}
+    \item[CV]:
+    \item[Semaphore]: 
+      \item[Barrier]: unblock one task andi decrease counter at the same time
+    \end{description}
 \end{enumerate}
 \section{mailbox}
 \begin{description}
 \item[structure:]
   \begin{enumerate}
-  \item name: the name of this mail box
-  \item users: record the number of tasks using this mailbox. If it is zero, restore this mail box
-    \item used: whether this mail box is used or not.
+  \item mailbox\_name: the name of this mail box
+  \item number\_of\_users: record the number of tasks using this mailbox. If it is zero, restore this mail box
+  \item used(or just used number\_of\_users): whether this mail box is used or not.
+  \item full
+  \item empty
+  \item a buffer
+  \item write\_index
+  \item read\_index
+  \end{enumerate}
+\item[operation]:
+  \begin{enumerate}
+  \item open: select one empty mailbox from mailbox array to process. Increase number\_of\_users. If no box is available, return -1
+  \item close: restore a mailbox, mark it as unused.
+  \item send: write data, process is only blocked when MAILBOX is full. Each mailbox contains MAX\_MBOX\_LENGTH massages, so one porcess use one of them in sequence. It is like a two dimensional pipe.
+  \item read: read data, process is only blocked when MAILBOX is EMPTY. Each mailbox contains MAX\_MBOX\_LENGTH massages, so one porcess read from one of them in sequence. one write\_index equals to read\_index indicates empty.
   \end{enumerate}
 \end{description}
 \end{document}

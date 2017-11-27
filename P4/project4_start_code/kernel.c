@@ -52,7 +52,7 @@ void __attribute__((section(".entry_function"))) _start(void)
 	 * into our pcb[] array.
 	 */
 	for (i = 0; i < NUM_TASKS; ++i) {
-		pcb[i].status = EXITED;
+	    pcb[i].status = EXITED;
 	}
 
 	init_syscalls();
@@ -62,6 +62,7 @@ void __attribute__((section(".entry_function"))) _start(void)
 	init_mbox();
 
 	do_spawn("init");
+	printf(1, 1, "21:40");
 	/* Schedule the first task */
 	enter_critical();
 	scheduler_entry();
@@ -81,28 +82,36 @@ static uint32_t *stack_new()
 
 static void initialize_pcb(pcb_t *p, pid_t pid, struct task_info *ti)
 {
-	p->entry_point = ti->entry_point;
-	p->pid = pid;
-	p->task_type = ti->task_type;
-	p->priority = 1;
-	p->status = FIRST_TIME;
-	switch (ti->task_type) {
-		case KERNEL_THREAD:
-			p->kernel_tf.regs[29] = (uint32_t)stack_new();
-			p->nested_count = 1;
-			break;
-		case PROCESS:
-			p->kernel_tf.regs[29] = (uint32_t)stack_new();
-			p->user_tf.regs[29] = (uint32_t)stack_new();
-			p->nested_count = 0;
-			break;
-		default:
-			ASSERT(FALSE);
-	}
-	p->kernel_tf.regs[31] = (uint32_t) first_entry;
-
-	// customization
-	queue_init(&p->wait_queue);
+    p->entry_point = ti->entry_point;
+    p->pid = pid;
+    p->task_type = ti->task_type;
+    p->priority = 1;
+    p->status = FIRST_TIME;
+    switch (ti->task_type) {
+    case KERNEL_THREAD:
+	p->kernel_tf.regs[29] = (uint32_t)stack_new();
+	p->nested_count = 1;
+	break;
+    case PROCESS:
+	p->kernel_tf.regs[29] = (uint32_t)stack_new();
+	p->user_tf.regs[29] = (uint32_t)stack_new();
+	p->nested_count = 0;
+	break;
+    default:
+	ASSERT(FALSE);
+    }
+    p->kernel_tf.regs[31] = (uint32_t) first_entry;
+//    p->kernel_tf.regs[31] = p->entry_point;
+//    printf(8, 1, "ra: %x", p->kernel_tf.regs[31]);
+    // customization
+    queue_init(&p->wait_queue);
+    p->kernel_tf.cp0_status = 0x00008001;
+    p->user_tf.cp0_status = 0x00008001;
+    int box;
+    for(box = 0; box < 32; box++){
+	p->boxes[box] = 0;
+    }
+    
 }
 
 
@@ -113,9 +122,9 @@ static void first_entry()
 	enter_critical();
 
 	if (KERNEL_THREAD == current_running->task_type) {
-		stack = current_running->kernel_tf.regs[29];
+	    stack = current_running->kernel_tf.regs[29];
 	} else {
-		stack = current_running->user_tf.regs[29];
+	    stack = current_running->user_tf.regs[29];
 	}
 	entry_point = current_running->entry_point;
 
@@ -123,12 +132,15 @@ static void first_entry()
 	// It is safe in this case because both variables are
 	// loaded into registers before the stack change, and
 	// because we jmp before leaving asm()
+
+
+	
 	asm volatile ("add $sp, $0, %0\n"
-			"jal leave_critical\n"
-			"nop\n"
-			"add $ra, $0, %1\n"
-			"jr $ra\n"
-			:: "r" (stack), "r" (entry_point));
+		      "jal leave_critical\n"
+		      "nop\n"
+		      "add $ra, $0, %1\n"
+		      "jr $ra\n"
+		      :: "r" (stack), "r" (entry_point));
 
 	ASSERT(FALSE);
 }
@@ -163,10 +175,10 @@ static void init_syscalls()
 	syscall[SYSCALL_SPAWN] = (int (*)()) &do_spawn;
 	syscall[SYSCALL_KILL] = (int (*)()) &do_kill;
 	syscall[SYSCALL_WAIT] = (int (*)()) &do_wait;
-    syscall[SYSCALL_MBOX_OPEN] = (int (*)()) &do_mbox_open;
-    syscall[SYSCALL_MBOX_CLOSE] = (int (*)()) &do_mbox_close;
-    syscall[SYSCALL_MBOX_SEND] = (int (*)()) &do_mbox_send;
-    syscall[SYSCALL_MBOX_RECV] = (int (*)()) &do_mbox_recv;
+	syscall[SYSCALL_MBOX_OPEN] = (int (*)()) &do_mbox_open;
+	syscall[SYSCALL_MBOX_CLOSE] = (int (*)()) &do_mbox_close;
+	syscall[SYSCALL_MBOX_SEND] = (int (*)()) &do_mbox_send;
+	syscall[SYSCALL_MBOX_RECV] = (int (*)()) &do_mbox_recv;
 	syscall[SYSCALL_TIMER] = (int (*)()) &get_timer;
 }
 
@@ -234,45 +246,52 @@ int print_char(int line, int col, char c){
 int spawn_times = 0;
 static int do_spawn(const char *filename)
 {
-  (void)filename;
-  /* TODO */
-  struct task_info ti;
-  int i, j;
-  int num_files = get_num_files();
-  int find = 0;
-  File* target_file;
-  struct pcb* available_pcb;
+    
+    (void)filename;
+    /* TODO */
+    struct task_info ti;
+    int i, j;
+    int num_files = get_num_files();
+    int find = 0;
+    File* target_file;
+    struct pcb* available_pcb;
 
-  enter_critical(); 
+    enter_critical(); 
 
-  // find the file wanted
-  for(i = 0; i < num_files; i++){
-      char* name = filename;
-      char* file = get_nth_file(i)->filename;
-      if(same_string(name, file)){
-	  target_file = get_nth_file(i);
-	  find = 1;
-	  break;
-      }	  
-  }
+    // find the file wanted
+    for(i = 0; i < num_files; i++){
+	char* name = filename;
+	char* file = get_nth_file(i)->filename;
+	if(same_string(name, file)){
+	    target_file = get_nth_file(i);
+	    find = 1;
+	    break;
+	}	  
+    }
 
-  ASSERT(find);  // file does not exist
+    ASSERT(find);  // file does not exist
   
-  // find a slot in pcb[NUM_PCBS]
-  for(j = 0; j < NUM_PCBS; j++)
-      if(pcb[j].status == EXITED)
-	  break;
-      else
-	  ASSERT(0);   // no slot available
-  available_pcb = &pcb[j];
+    // find a slot in pcb[NUM_PCBS]
+    for(j = 0; j < NUM_PCBS; j++){
+	if(pcb[j].status == EXITED)
+	    break;
+    }
 
-  // initialize pcb
-  ti.entry_point = target_file->process;
-  ti.task_type = target_file->task_type;
-  initialize_pcb(available_pcb, j+1, &ti);
-  enqueue(&ready_queue, (node_t*)available_pcb);
-  leave_critical();
-  return 0;
+    if(j == NUM_PCBS && pcb[NUM_PCBS].status != EXITED)
+	return -1;
+    available_pcb = &pcb[j];
+    
+    // initialize pcb
+
+    ti.entry_point = (uint32_t)target_file->process;
+    ti.task_type = target_file->task_type;
+    
+    initialize_pcb(available_pcb, j+1, &ti);
+
+    enqueue(&ready_queue, (node_t*)available_pcb);
+
+    leave_critical();
+    return 0;
 }
 
 static int do_kill(pid_t pid)
@@ -286,7 +305,20 @@ static int do_kill(pid_t pid)
 
 
   pcb[pid-1].status = EXITED;
-  unblock_all(&pcb[pid-1].wait_queue);
+  // unblock_all(&pcb[pid-1].wait_queue);
+  while(!is_empty(&pcb[pid-1].wait_queue)){
+      pcb_t* ready_node = (pcb_t*)dequeue(&pcb[pid-1].wait_queue);
+      ready_node->status = READY;
+      enqueue(&ready_queue, (node_t*)ready_node);
+  }
+
+  // release all the mailboxes this process uses
+  int mbox;
+  for(mbox = 0; mbox < 32; mbox++){
+      if(pcb[pid].boxes[mbox] == 1){
+	  do_mbox_close(mbox);
+      }
+  }
   
   return -1;
 }

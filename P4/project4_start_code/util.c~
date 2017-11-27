@@ -196,32 +196,11 @@ void clear_string(char* str){
 }
 
 int strcpy(char* dest, const char* sour){
-    // keep the '\0'
-    int len_dest = strlen(dest) + 1;
-    int len_sour = strlen(sour) + 1;
+    int len_dest = strlen(dest);
+    int len_sour = strlen(sour);
     
-    if(len_dest < len_sour)
-	return -1;
-    else{
-	int i;
-	for(i = 0; i < len_dest; i++)
-	    dest[i] = sour[i];
-    }
-    return 0;
+    if(strlen)    
 }
-
-int strncpy(char* dest, const char* sour, int size){
-    // user is responsible for limiting size within
-    // min(strlen(sour), strlen(dest))
-    
-    int i; 
-    for(i = 0; i < size; i++)
-	dest[i] = sour[i];
-    dest[i] = '\0';
-    return 0;
-}
-
-
 /* Block copy: copy size bytes from source to dest. The arrays can overlap
  */
 void bcopy(char *source, char *destin, int size)

@@ -26,7 +26,6 @@ void reverse(char *s);
 int strlen(const char *s);
 void clear_string(char* str);
 int strcpy(char* dest, const char* sour);
-int strncpy(char* dest, const char* sour, int size);
 
 int same_string(const char *str1, const char *str2);
 

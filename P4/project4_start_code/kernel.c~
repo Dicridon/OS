@@ -284,9 +284,9 @@ static int do_kill(pid_t pid)
   else if(pid >= 32 || pid <= 0)
       return -1;
 
+
   pcb[pid-1].status = EXITED;
-  unblock_all(pcb[pid-1].wait_queue);
-  
+  unblock_all(&pcb[pid-1].wait_queue);
   
   return -1;
 }

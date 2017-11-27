@@ -33,7 +33,7 @@ typedef enum {
     SYSCALL_MBOX_CLOSE,
     SYSCALL_MBOX_SEND,
     SYSCALL_MBOX_RECV,
-	SYSCALL_TIMER,
+    SYSCALL_TIMER,
     NUM_SYSCALLS
 } syscall_t;
 

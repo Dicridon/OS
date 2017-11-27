@@ -1,36 +1,40 @@
-/* process2.c Simple process which does some calculations and exits. */
-
 #include "common.h"
 #include "syslib.h"
 #include "util.h"
 #include "printf.h"
 
-static int rec(int n);
-
-#define LINE 6
-
-void __attribute__((section(".entry_function"))) _start(void)
+void LiuBei(void)
 {
-    int i, res;
+    
+    mbox_t pub = mbox_open("LiuBei-Publish-PID");
 
-    for (i = 0; i <= 100; i++) {
-        res = rec(i);
+    pid_t myPid = getpid();
 
-        printf(LINE, 0, "PID %d : 1 + ... + %d = %d", getpid(), i, res);
-        sleep(300);
-        yield();
-    }
-    exit();
+    /* Send PID twice, once for sunquan Hood,
+     * and once for the CaoCao
+     */
+    mbox_send(pub, &myPid, sizeof(pid_t));
+    mbox_send(pub, &myPid, sizeof(pid_t));
+
+
+    /* Find sunquan's PID */
+    mbox_t sub = mbox_open("SunQuan-Publish-PID");
+
+    for(;;)
+	{
+	    pid_t aramis;
+	    mbox_recv(sub, &aramis, sizeof(pid_t));
+
+	    printf(2,1, "LiuBei(%d): I'm waiting for SunQuan         ", myPid);
+
+	    wait(aramis);
+
+	    printf(2,1, "LiuBei(%d): I'm coming to save you, SunQuan!", myPid);
+
+	    sleep(1000);
+	    spawn("SunQuan");
+	    mbox_send(pub, &myPid, sizeof(pid_t));
+	}
+
 }
 
-/* calculate 1+ ... + n */
-static int rec(int n)
-{
-    if (n % 37 == 0)
-        yield();
-
-    if (n == 0)
-        return 0;
-    else
-        return n + rec(n - 1);
-}

@@ -9,18 +9,11 @@
 
 static File files[] =
   {
-    {.filename = "init", .process = PROC4_ADDR, .task_type= PROCESS },
-    {.filename = "barrier1", .process = &barrier1, .task_type = KERNEL_THREAD},
-    {.filename = "barrier2", .process = &barrier2, .task_type = KERNEL_THREAD},
-    {.filename = "barrier3", .process = &barrier3, .task_type = KERNEL_THREAD},
+    {.filename = "init", .process = PROC4_ADDR, .task_type = PROCESS},
     {.filename = "clock_thread", .process = &clock_thread, .task_type = KERNEL_THREAD},
-    {.filename = "thread2", .process = &thread2, .task_type = KERNEL_THREAD},
-    {.filename = "thread3", .process = &thread3, .task_type = KERNEL_THREAD},
-    {.filename = "num", .process = &num, .task_type = KERNEL_THREAD},
-    {.filename = "caps", .process = &caps, .task_type = KERNEL_THREAD},
-    {.filename = "scroll_th", .process = &scroll_th, .task_type = KERNEL_THREAD},
-    {.filename = "PROC1", .process = PROC1_ADDR, .task_type = PROCESS},
-    {.filename = "PROC2", .process = PROC2_ADDR, .task_type = PROCESS},
+    {.filename = "SunQuan", .process = PROC1_ADDR , .task_type = PROCESS},
+    {.filename = "LiuBei", .process = PROC2_ADDR, .task_type = PROCESS },
+    {.filename = "CaoCao", .process = PROC3_ADDR, .task_type = PROCESS },
   };
 
 #define NUM_FILES     ( sizeof(files) / sizeof(File) )

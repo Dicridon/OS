@@ -6,7 +6,7 @@
 #include "scheduler.h"
 #include "util.h"
 #include "interrupt.h"
-
+#include "printf.h"
 #include "cp0regdefs.h"
 
 #define EBASE 0xbfc00000
@@ -73,24 +73,36 @@ void init_interrupts(void)
 
 void c_simple_handler(int ip_source, int exc_code)
 {
+
 }
 
 int irq_times = 0;
 void timer_irq()
 {
-     time_elapsed++;
+    static int j;
+    time_elapsed++;
 
-     reset_timer(TIMER_INTERVAL);
+    reset_timer(TIMER_INTERVAL);
 
-     if (current_running->nested_count) return ;
-     put_current_running();
-     scheduler_entry();
-     enter_critical();
+    if (current_running->nested_count){
+	return ;	
+    }
+    current_running->status = READY;
+    enqueue(&ready_queue, (node_t*)current_running);
+    
+    scheduler_entry();
+    enter_critical();
 }
 void system_call_helper(int fn, int arg1, int arg2, int arg3)
 {
     int ret_val = 0;
 
+
+//    printf(3, 1, "current entry: %x", current_running->entry_point);
+//    printf(4, 1, "current nested_count: %x", current_running->nested_count);
+//    printf(5, 1, "current fn: %d", fn);
+
+    
     ASSERT2(current_running->nested_count == 0,
             "A process/thread that was running inside the kernel made a syscall.");
     enter_critical();
@@ -113,6 +125,8 @@ void system_call_helper(int fn, int arg1, int arg2, int arg3)
     // This is due to a potential race condition on a scratch variable
     // used by syscall_entry.
     enter_critical();
+//    if(current_running->task_type == PROCESS)
+//	current_running->nested_count = 0;
     current_running->nested_count--;
     current_running->user_tf.regs[2] = ret_val;
     current_running->user_tf.cp0_epc = current_running->user_tf.cp0_epc + 4;
@@ -120,3 +134,6 @@ void system_call_helper(int fn, int arg1, int arg2, int arg3)
 
 }
 
+void kidding(){
+//    printf(23, 1, "KKKIIIDDDIIINNNGGG");
+}

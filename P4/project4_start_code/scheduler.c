@@ -16,6 +16,7 @@ void check_sleeping(){
 
      pcb_t *sleeping;
 
+	 
      while (!is_empty(&sleep_wait_queue)) {
           sleeping = (pcb_t *)peek(&sleep_wait_queue);
           if (sleeping->deadline <= time_elapsed) {
@@ -40,6 +41,7 @@ int scheduler_times = 0;
 /* Change current_running to the next task */
 void scheduler(){
      ASSERT(disable_count);
+//     print_str(16, 1, "scheduler               ");
      check_sleeping(); // wake up sleeping processes
      while (is_empty(&ready_queue)){
           leave_critical();
@@ -47,6 +49,12 @@ void scheduler(){
           check_sleeping();
      }
      current_running = (pcb_t *) dequeue(&ready_queue);
+//     printf(17, 1, "target entry point %x    ", current_running->entry_point);
+//     printf(18, 1, "target ra %x       ", current_running->kernel_tf.regs[31]);
+//     printf(6, 1, "cur pid: %d, nested_count: %d, entry: %x",
+//	    current_running->pid,
+//	    current_running->nested_count,
+//	    current_running->entry_point);
      ASSERT(NULL != current_running);
      ++current_running->entry_count;
 }

@@ -1,4 +1,3 @@
->
 #include "common.h"
 #include "interrupt.h"
 #include "queue.h"
@@ -9,7 +8,7 @@
 
 /*TODO operate */
 static bool_t unblock_one(node_t *wait_enqueue)
-{
+ {
 	ASSERT(current_running->nested_count);
 
 	pcb_t *pcb = NULL; 
@@ -86,6 +85,7 @@ static void lock_release_helper(lock_t * l){
 
 void lock_release(lock_t * l){
     enter_critical();
+
     lock_release_helper(l);
     leave_critical();
 }
@@ -102,7 +102,7 @@ void condition_wait(lock_t * m, condition_t * c){
     enter_critical();
     lock_release_helper(m);
     current_running->status = BLOCKED;
-    enqueue(node_t *queue, node_t *item);
+    block(&c->wait_queue);
 
     scheduler_entry();
 
@@ -113,14 +113,16 @@ void condition_wait(lock_t * m, condition_t * c){
 /* TODO: Unblock the first thread waiting on c, if it exists */
 void condition_signal(condition_t * c){
     enter_critical();
-    unblock_one(&c->wait_queue);
+    if(!is_empty(&c->wait_queue))
+	unblock_one(&c->wait_queue);
     leave_critical();
 }
 
 /* TODO: Unblock all threads waiting on c */
 void condition_broadcast(condition_t * c){
     enter_critical();
-    unblock_all(&c->wait_queue);
+    if(!is_empty(&c->wait_queue))
+	unblock_all(&c->wait_queue);
     leave_critical();
 }
 
@@ -136,28 +138,31 @@ void semaphore_up(semaphore_t * s){
     enter_critical();
 
 //    if(s->semaphore_value++ <= 0 && !is_empty(&s->wait_queue))
-//	unblock_one(&s->wait_queue);
-    
-    if(s->semaphore_value <= 0 && !is_empty(&s->wait_queue))
+    s->semaphore_value++;
+    if(is_empty(&s->wait_queue))
 	unblock_one(&s->wait_queue);
-    else
-	s->semaphore_value++;
-
+    
     leave_critical();
 }
 
 /* TODO: Block until the semaphore value is greater than zero and decrement it */
 void semaphore_down(semaphore_t * s){
     enter_critical();
-    if(s->semaphore_value-- <= 0)
-	block(s->wait_queue);
+    // if intteruptable, decrement and comparison may be separated
+    // so a process may not be blocked even though semaphore value
+    // is already negative
+    if(s->semaphore_value == 0)
+	block(&s->wait_queue);
+    if(s->semaphore_value > 0)
+	s->semaphore_value--;
+
     leave_critical();
 }
 
 /* TODO: Initialize a barrier.  n is number of threads that rendezvous at the
    barrier */
 void barrier_init(barrier_t * b, int n){
-    ASSEET(n);
+    ASSERT(n);
     b->target = n;
     b->blocked = 0;
     queue_init(&b->wait_queue);

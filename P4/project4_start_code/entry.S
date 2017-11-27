@@ -13,7 +13,7 @@
   .equ  NESTED_COUNT, 320
 
 .macro PUTCHAR ch label
-	  addi  k0,$0,10000
+	addi  k0,$0,10000
 	\label:
 	addi  k0,k0,-1
 	bne k0,$0,\label
@@ -108,57 +108,65 @@
 
 /* Restore registers/flags from the specified offset in the current PCB */
 .macro RESTORE_CONTEXT offset
-  .set    noat
-  la      sp,current_running
-  lw      sp,0(sp)
-  addi    sp,sp,\offset
-  mfc0    t0, CP0_STATUS
-  ori     t0, 0x3
-  xori    t0, 0x3
-  mtc0    t0, CP0_STATUS
-  lw      v0, TF_STATUS(sp)
-  li      v1, 0xff00
-  and     t0, v1
-  nor     v1, $0, v1
-  and     v0, v1
-  or      v0, t0
-  mtc0    v0, CP0_STATUS
-  lw      v1, TF_LO(sp)
-  mtlo    v1
-  lw      v0, TF_HI(sp)
-  lw      v1, TF_EPC(sp)
-  mthi    v0
-  mtc0    v1, CP0_EPC
-  lw      $31, TF_REG31(sp)
-  lw      $30, TF_REG30(sp)
-  lw      $28, TF_REG28(sp)
-  lw      $25, TF_REG25(sp)
-  lw      $24, TF_REG24(sp)
-  lw      $23, TF_REG23(sp)
-  lw      $22, TF_REG22(sp)
-  lw      $21, TF_REG21(sp)
-  lw      $20, TF_REG20(sp)
-  lw      $19, TF_REG19(sp)
-  lw      $18, TF_REG18(sp)
-  lw      $17, TF_REG17(sp)
-  lw      $16, TF_REG16(sp)
-  lw      $15, TF_REG15(sp)
-  lw      $14, TF_REG14(sp)
-  lw      $13, TF_REG13(sp)
-  lw      $12, TF_REG12(sp)
-  lw      $11, TF_REG11(sp)
-  lw      $10, TF_REG10(sp)
-  lw      $9, TF_REG9(sp)
-  lw      $8, TF_REG8(sp)
-  lw      $7, TF_REG7(sp)
-  lw      $6, TF_REG6(sp)
-  lw      $5, TF_REG5(sp)
-  lw      $4, TF_REG4(sp)
-  lw      $3, TF_REG3(sp)
-  lw      $2, TF_REG2(sp)
-  lw      $1, TF_REG1(sp)
-  lw      sp, TF_REG29(sp)
-  .set    at
+	.set    noat
+
+	la      sp,current_running
+
+	lw      sp,0(sp)
+
+	addi    sp,sp,\offset
+	mfc0    t0, CP0_STATUS
+	ori     t0, 0x3
+	xori    t0, 0x3
+	mtc0    t0, CP0_STATUS
+
+	lw      v0, TF_STATUS(sp)
+	li      v1, 0xff00
+	and     t0, v1
+	nor     v1, $0, v1
+	and     v0, v1
+	or      v0, t0
+
+	mtc0    v0, CP0_STATUS
+	
+	lw      v1, TF_LO(sp)
+	mtlo    v1
+	lw      v0, TF_HI(sp)
+	lw      v1, TF_EPC(sp)
+	mthi    v0
+	mtc0    v1, CP0_EPC
+
+	lw      $31, TF_REG31(sp)
+	lw      $30, TF_REG30(sp)
+	lw      $28, TF_REG28(sp)
+	lw      $25, TF_REG25(sp)
+	lw      $24, TF_REG24(sp)
+	lw      $23, TF_REG23(sp)
+	lw      $22, TF_REG22(sp)
+	lw      $21, TF_REG21(sp)
+	lw      $20, TF_REG20(sp)
+	lw      $19, TF_REG19(sp)
+	lw      $18, TF_REG18(sp)
+	lw      $17, TF_REG17(sp)
+	lw      $16, TF_REG16(sp)
+	lw      $15, TF_REG15(sp)
+	lw      $14, TF_REG14(sp)
+	lw      $13, TF_REG13(sp)
+	lw      $12, TF_REG12(sp)
+	lw      $11, TF_REG11(sp)
+	lw      $10, TF_REG10(sp)
+	lw      $9, TF_REG9(sp)
+	lw      $8, TF_REG8(sp)
+	lw      $7, TF_REG7(sp)
+	lw      $6, TF_REG6(sp)
+	lw      $5, TF_REG5(sp)
+	lw      $4, TF_REG4(sp)
+	lw      $3, TF_REG3(sp)
+	lw      $2, TF_REG2(sp)
+	lw      $1, TF_REG1(sp)
+	lw      sp, TF_REG29(sp)
+
+	.set    at
 .endm
 
 /* As above, but restore only %esp */
@@ -220,12 +228,14 @@ disable_count:
   .text
 
 NESTED(scheduler_entry,0,ra)
-  SAVE_CONTEXT(KERNEL)
-  jal    scheduler
-  LEAVE_CRITICAL
-  RESTORE_CONTEXT(KERNEL)
-  STI
-  jr  ra
+	SAVE_CONTEXT(KERNEL)
+	jal    scheduler
+	nop
+	LEAVE_CRITICAL
+	RESTORE_CONTEXT(KERNEL)
+	STI
+	jr  ra
+	nop
 END(scheduler_entry)
 
 LEAF(asm_start)
@@ -309,45 +319,53 @@ END(simple_handler)
 NESTED(handle_syscall,0,sp)
 	SAVE_CONTEXT(USER)
 	//RESTORE_CONTEXT(KERNEL)
-  add   a3,a2,$0
-  add   a2,a1,$0
-  add   a1,a0,$0
-  add   a0,v0,$0
+	add   a3,a2,$0
+	add   a2,a1,$0
+	add   a1,a0,$0
+	add   a0,v0,$0
 
-  jal system_call_helper
+	jal system_call_helper
 
-  LEAVE_CRITICAL
+	LEAVE_CRITICAL
 	RESTORE_CONTEXT(USER)
 	j return_from_exception
 END(handle_syscall)
 
 NESTED(handle_int,0,sp)
-  SAVE_CONTEXT(USER)
-  ENTER_CRITICAL
-  mfc0  k0, CP0_CAUSE           /* Read Cause register for IP bits */
-  andi  k0, k0, CAUSE_IPL       /* Keep only IP bits from Cause */
-  clz   k0, k0                  /* Find first bit set, IP7..IP0; k0 = 16..23 */
-  xori  k0, k0, 0x17            /* 16..23 => 7..0 */
+	SAVE_CONTEXT(USER)
+	ENTER_CRITICAL
+	mfc0  k0, CP0_CAUSE           /* Read Cause register for IP bits */
+	andi  k0, k0, CAUSE_IPL       /* Keep only IP bits from Cause */
+	clz   k0, k0                  /* Find first bit set, IP7..IP0; k0 = 16..23 */
+	xori  k0, k0, 0x17            /* 16..23 => 7..0 */
 
-  li    k1, 7
+	li    k1, 7
 
-  bne   k0,k1,do_nothing
-  jal   timer_irq
+	bne   k0,k1,do_nothing
+	jal   timer_irq
+	nop
 
 do_nothing:
-  mfc0  k0, CP0_CAUSE           /* Read Cause register for IP bits */
+	mfc0  k0, CP0_CAUSE           /* Read Cause register for IP bits */
 	andi  k0, k0, CAUSE_IPL       /* Keep only IP bits from Cause */
-  add   k1, k0, $0
-  clz   k0, k0                  /* Find first bit set, IP7..IP0; k0 = 16..23 */
+	add   k1, k0, $0
+	clz   k0, k0                  /* Find first bit set, IP7..IP0; k0 = 16..23 */
 	xori  k0, k0, 0x17            /* 16..23 => 7..0 */
-  addi  k0, k0, 8               /* 7..0 => 15..8 */
-  li    t0, 1
-  sllv  k0, t0, k0
+	addi  k0, k0, 8               /* 7..0 => 15..8 */
+	li    t0, 1
+	sllv  k0, t0, k0
 	xor   k0, k0, k1
 	mtc0  k0, CP0_CAUSE
-  LEAVE_CRITICAL
-  RESTORE_CONTEXT(USER)
+
+	// I add code below to clear time interrupt
+//	mtc0  zero, CP0_COUNT
+//	li    k0, 150000000
+//	mtc0  k0, CP0_COMPARE
+	
+	LEAVE_CRITICAL
+	RESTORE_CONTEXT(USER)
 	j return_from_exception
+	nop
 END(handle_int)
 
 ret:

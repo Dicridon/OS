@@ -106,7 +106,7 @@ void block(node_t * wait_queue);
 
 /* Unblock the specified task */
 void unblock(pcb_t * task);
-void unblock_all(node_t* blocked_queue);
+
 /* Extra Credit */
 /* Return the current task's priority */
 priority_t do_getpriority(void);

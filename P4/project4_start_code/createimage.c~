@@ -10,10 +10,10 @@
 #define SECTOR 512
 #define PROCESS_BLOCK 128
 
-#define PROCESS1_OFF 0x20000
-#define PROCESS2_OFF 0x22000
-#define PROCESS3_OFF 0x24000
-#define PROCESS4_OFF 0x26000
+#define PROCESS1_OFF 0x0000
+#define PROCESS2_OFF 0x2000
+#define PROCESS3_OFF 0x4000
+#define PROCESS4_OFF 0x6000
 
 
 // Open a file, return its program header and pass out a Elf header
@@ -97,7 +97,7 @@ void write_kernel(FILE *image_file, char *kernelname, Elf32_Ehdr *kernel_ehdr)
     int i;
     int total_size = 0;
     Elf32_Phdr* phdr_table = (Elf32_Phdr*)malloc(sizeof(Elf32_Phdr) * kernel_ehdr->e_phnum);
-//    int sector_of_kernel;
+    int sector_of_kernel;
 
     fseek(kernel_file, kernel_ehdr->e_phoff, SEEK_SET);
     fread(phdr_table, sizeof(Elf32_Phdr), kernel_ehdr->e_phnum, kernel_file);
@@ -173,9 +173,9 @@ void record_kernel_sectors(FILE *image_file, uint32_t sector_size , uint32_t tot
 }
 
 
-uint32_t write_process(FILE* image_file, char* process_name, int process_off){
+uint32_t write_process(FILE* image_file, char* process_name){
     char buffer[SECTOR];
-//    char filling[SECTOR] = "";
+    char filling[SECTOR] = "";
     int file_size;
     int chunk = SECTOR;
     int read_size;
@@ -201,9 +201,6 @@ uint32_t write_process(FILE* image_file, char* process_name, int process_off){
     printf("file vddr: 0x%x\n", p_phdr.p_vaddr);
     printf("file sectors %u\n", sectors_of_file);
 
-
-    // find desired offset and start writing
-    fseek(image_file, process_off, SEEK_SET);
     while(file_size > 0){
 	read_size = (chunk <= file_size) ? chunk : file_size;
 	fread(buffer, 1, read_size, process);
@@ -212,13 +209,13 @@ uint32_t write_process(FILE* image_file, char* process_name, int process_off){
     }
 
     // padding one sector
-//    fwrite(filling, 1, SECTOR-(p_phdr.p_filesz % SECTOR), image_file);
+    fwrite(filling, 1, SECTOR-(p_phdr.p_filesz % SECTOR), image_file);
     
     // finish padding 128 sectors
-//    int i;
-//    for(i = 0; i < 128 - sectors_of_file; i++){
-//	fwrite(filling, 1, SECTOR, image_file);
-//    }
+    int i;
+    for(i = 0; i < 128 - sectors_of_file; i++){
+	fwrite(filling, 1, SECTOR, image_file);
+    }
     
     if(fclose(process) != 0)
 	printf("close failed\n");
@@ -228,6 +225,90 @@ uint32_t write_process(FILE* image_file, char* process_name, int process_off){
     return p_phdr.p_filesz;
 }
 
+
+uint32_t write_process1(FILE* image_file, char* process_name){
+    char buffer[SECTOR];
+    char filling[SECTOR] = "";
+    int file_size;
+    int chunk = SECTOR;
+    int read_size;
+    int sectors_of_file;
+
+    FILE* process = fopen(process_name, "rb");
+    if(process == NULL){
+	printf("Open process %s failed\n", process_name);
+	return -1;
+    }
+    
+    Elf32_Ehdr p_ehdr;
+    Elf32_Phdr p_phdr;
+    fread(&p_ehdr, sizeof(Elf32_Ehdr), 1, process);
+    fseek(process, p_ehdr.e_phoff, SEEK_SET);
+    fread(&p_phdr, sizeof(Elf32_Phdr), 1, process);
+    fseek(process, p_phdr.p_offset, SEEK_SET);
+
+    printf("write_process, Line208, ready to write **** %s ****\n", process_name);
+    file_size = p_phdr.p_filesz;
+    sectors_of_file = file_size/SECTOR + !(file_size % SECTOR == 0);
+    printf("file size: %u\n", p_phdr.p_filesz);
+    printf("file vddr: 0x%x\n", p_phdr.p_vaddr);
+    printf("file sectors %u\n", sectors_of_file);
+
+    fseek(image_file, PROCESS1_OFF, SEEK_SET);
+    while(file_size > 0){
+	read_size = (chunk <= file_size) ? chunk : file_size;
+	fread(buffer, 1, read_size, process);
+	fwrite(buffer, 1, read_size, image_file);
+	file_size -= chunk;
+    }
+
+    // padding one sector
+    fwrite(filling, 1, SECTOR-(p_phdr.p_filesz % SECTOR), image_file);
+    return p_phdr.p_filesz;
+}
+
+
+uint32_t write_process2(FILE* image_file, char* process_name){
+    char buffer[SECTOR];
+    char filling[SECTOR] = "";
+    int file_size;
+    int chunk = SECTOR;
+    int read_size;
+    int sectors_of_file;
+
+    FILE* process = fopen(process_name, "rb");
+    if(process == NULL){
+	printf("Open process %s failed\n", process_name);
+	return -1;
+    }
+
+    Elf32_Ehdr p_ehdr;
+    Elf32_Phdr p_phdr;
+    fread(&p_ehdr, sizeof(Elf32_Ehdr), 1, process);
+    fseek(process, p_ehdr.e_phoff, SEEK_SET);
+    fread(&p_phdr, sizeof(Elf32_Phdr), 1, process);
+    fseek(process, p_phdr.p_offset, SEEK_SET);
+
+    printf("write_process, Line208, ready to write **** %s ****\n", process_name);
+    file_size = p_phdr.p_filesz;
+    sectors_of_file = file_size/SECTOR + !(file_size % SECTOR == 0);
+    printf("file size: %u\n", p_phdr.p_filesz);
+    printf("file vddr: 0x%x\n", p_phdr.p_vaddr);
+    printf("file sectors %u\n", sectors_of_file);
+
+    fseek(image_file, PROCESS2_OFF, SEEK_SET);
+    while(file_size > 0){
+	read_size = (chunk <= file_size) ? chunk : file_size;
+	fread(buffer, 1, read_size, process);
+	fwrite(buffer, 1, read_size, image_file);
+	file_size -= chunk;
+    }
+
+    // padding one sector
+    fwrite(filling, 1, SECTOR-(p_phdr.p_filesz % SECTOR), image_file);
+    return p_phdr.p_filesz;
+}
+    
 
 void extended_opt(char* filename, int sector_num, Elf32_Ehdr* ehdr, Elf32_Phdr* phdr){
     if(filename == NULL || ehdr == NULL || phdr == NULL)
@@ -253,7 +334,6 @@ int main(int argc, char *argv[]){
     char* process1;
     char* process2;
     char* process3;
-    char* processes;
     uint16_t sector_num;
     uint32_t process_size;
     Elf32_Ehdr* b_ehdr;
@@ -284,13 +364,12 @@ int main(int argc, char *argv[]){
 
 	fclose(image_file);
     }
-    else if(argc == 8 && !strcmp(argv[1], "--extended")){
+    else if(argc == 6 && !strcmp(argv[1], "--extended")){
 	bootblock = argv[2];
 	kernel = argv[3];
 	process1 = argv[4];
 	process2 = argv[5];
-	process3 = argv[6];
-	processes = argv[7];
+//	process3 = argv[6];
 	// write bootblock
 	printf("reading %s\n", bootblock);
 	b_phdr = read_exec_file(&bootblockfile, bootblock, &b_ehdr);
@@ -303,20 +382,22 @@ int main(int argc, char *argv[]){
 	write_kernel(image_file, kernel, k_ehdr);	
 
 
+//	printf("writing %s\n", process1);
+//	write_process(image_file, process1);
+//
+//	printf("writing %s\n", process2);
+//	process_size = write_process(image_file, process2);
+//
+//	printf("writing %s\n", process3);
+//	process_size = write_process(image_file, process3);
+
 	printf("writing %s\n", process1);
-	write_process(image_file, process1, PROCESS1_OFF);
+	write_process1(image_file, process1);
 
 	printf("writing %s\n", process2);
-	process_size = write_process(image_file, process2, PROCESS2_OFF);
-
-	printf("writing %s\n", process3);
-	process_size = write_process(image_file, process3, PROCESS3_OFF);
-
-	printf("writing %s\n", processes);
-	process_size = write_process(image_file, processes, PROCESS4_OFF);
-
+	process_size = write_process2(image_file, process2);
 	
-	record_kernel_sectors(image_file, SECTOR, process_size+0x26000);	
+	record_kernel_sectors(image_file, SECTOR, process_size+0x8200);	
 	extended_opt(bootblock, 1, b_ehdr, b_phdr);
 	extended_opt(kernel, sector_num, k_ehdr, k_phdr);
 
@@ -325,4 +406,3 @@ int main(int argc, char *argv[]){
     else
 	return 0;
 }
-
