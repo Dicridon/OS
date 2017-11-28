@@ -10,6 +10,7 @@
 #include "scheduler.h"
 
 typedef struct lock{
+    node_t node;
     enum {
         UNLOCKED,
         LOCKED

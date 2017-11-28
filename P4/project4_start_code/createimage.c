@@ -97,7 +97,6 @@ void write_kernel(FILE *image_file, char *kernelname, Elf32_Ehdr *kernel_ehdr)
     int i;
     int total_size = 0;
     Elf32_Phdr* phdr_table = (Elf32_Phdr*)malloc(sizeof(Elf32_Phdr) * kernel_ehdr->e_phnum);
-//    int sector_of_kernel;
 
     fseek(kernel_file, kernel_ehdr->e_phoff, SEEK_SET);
     fread(phdr_table, sizeof(Elf32_Phdr), kernel_ehdr->e_phnum, kernel_file);
@@ -123,14 +122,6 @@ void write_kernel(FILE *image_file, char *kernelname, Elf32_Ehdr *kernel_ehdr)
     }
 
 
-
-    // padding for process1
-//    sector_of_kernel = total_size / SECTOR + (total_size%SECTOR != 0);
-//    printf("padding %d sectors for process\n", sector_of_kernel);
-//    for(i = 0; i < PROCESS_BLOCK-sector_of_kernel-1; i++){
-//	fwrite(filling, sizeof(char), SECTOR, image_file);
-//    }
-    
     fclose(kernel_file);
     free(buffer);
     free(phdr_table);
@@ -211,15 +202,6 @@ uint32_t write_process(FILE* image_file, char* process_name, int process_off){
 	file_size -= chunk;
     }
 
-    // padding one sector
-//    fwrite(filling, 1, SECTOR-(p_phdr.p_filesz % SECTOR), image_file);
-    
-    // finish padding 128 sectors
-//    int i;
-//    for(i = 0; i < 128 - sectors_of_file; i++){
-//	fwrite(filling, 1, SECTOR, image_file);
-//    }
-    
     if(fclose(process) != 0)
 	printf("close failed\n");
     else

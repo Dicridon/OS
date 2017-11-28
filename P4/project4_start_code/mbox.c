@@ -87,7 +87,6 @@ mbox_t do_mbox_open(const char *name)
 	    return i;
 	}	
     }
-    
 
     // opened box not found
     for(i = 0; i < MAX_MBOXEN; i++){
@@ -123,7 +122,10 @@ void do_mbox_close(mbox_t mbox)
     /* TODO */
     if(mbox >= MAX_MBOXEN || mbox < 0)
 	return;
+    enter_critical();
     current_running->boxes[mbox] = 0;
+    leave_critical();
+    
     lock_acquire(&MessageBoxen[mbox].access_lock);
     if(--MessageBoxen[mbox].number_of_users == 0){
 	MessageBoxen[mbox].unused = 1;

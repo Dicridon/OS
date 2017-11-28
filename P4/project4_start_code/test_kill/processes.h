@@ -13,21 +13,13 @@
  *
  */
 
-/* The init process is the first process started
- * by the kernel.
+/* The 'init' process is a shell
+ * that lets you spawn other programs.
  */
-void init(void);
+void init_process(void);
 
-void clock_thread(void);
-/* SunQuan and LiuBei are allies */
-void SunQuan(void);
-void LiuBei(void);
-
-/* And there is a villian (hiss) --- the
- * CaoCao of King
- */
-void CaoCao(void);
-
+void barrier1(void);
+void barrier2(void);
+void barrier3(void);
 
 #endif
-

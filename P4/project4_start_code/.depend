@@ -1,5 +1,4 @@
-barrier_test.o: barrier_test.c common.h scheduler.h queue.h sync.h util.h \
-  printf.h
+barrier_test.o: barrier_test.c
 createimage.o: createimage.c
 files.o: files.c files.h ramdisk.h scheduler.h common.h queue.h sync.h \
   processes.h
@@ -12,10 +11,10 @@ philosophers.o: philosophers.c
 print.o: print.c print.h
 printf.o: printf.c printf.h
 printk.o: printk.c printf.h print.h
-process1.o: process1.c syslib.h common.h
-process2.o: process2.c
-process3.o: process3.c
-processes.o: processes.c common.h syslib.h util.h printf.h processes.h
+process1.o: process1.c common.h syslib.h util.h printf.h
+process2.o: process2.c common.h syslib.h util.h printf.h
+process3.o: process3.c common.h syslib.h util.h printf.h
+processes.o: processes.c common.h syslib.h util.h printf.h
 queue.o: queue.c common.h queue.h
 ramdisk.o: ramdisk.c ramdisk.h scheduler.h common.h queue.h sync.h util.h \
   files.h
@@ -24,7 +23,8 @@ scheduler.o: scheduler.c common.h interrupt.h queue.h printf.h \
 sync.o: sync.c common.h interrupt.h queue.h scheduler.h sync.h util.h \
   printf.h
 syslib.o: syslib.c common.h syslib.h util.h
-th1.o: th1.c
+th1.o: th1.c common.h kernel.h scheduler.h queue.h sync.h th.h util.h \
+  printf.h
 th2.o: th2.c
 util.o: util.c util.h common.h
 bootblock.o: bootblock.S

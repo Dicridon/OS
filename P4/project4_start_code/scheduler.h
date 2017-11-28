@@ -31,6 +31,18 @@ struct task_info{
 };
 
 
+typedef struct lock_queue{
+    node_t node;
+
+    // I could write lock_t *l
+    // but the compiler won't let me write so
+    // it reports error
+    // but struct lock *l works
+    // I don't know why
+    struct lock *l;
+} lock_queue_t;
+
+
 /* Two macros for initializing a task_info structure */
 #define TH(entry)   { .entry_point = (uint32_t) entry,	\
 	    .task_type = KERNEL_THREAD }
@@ -75,6 +87,7 @@ typedef struct pcb {
     mbox_t boxes[32];
     uint32_t kstack;
     uint32_t ustack;
+    node_t lq;
 }pcb_t;
 
 extern node_t ready_queue;
@@ -103,6 +116,11 @@ uint64_t do_gettimeofday(void);
 /* Sleep for specified number of mulliseconds */
 void do_sleep(int milliseconds);
 
+int do_spawn(const char *filename);
+int do_kill(pid_t pid);
+int do_wait(pid_t pid);
+
+
 /* Schedule another task, putting the current one in the specified queue.
    Do not reschedule the current task until it is unblocked */
 void block(node_t * wait_queue);
@@ -119,3 +137,4 @@ priority_t do_getpriority(void);
 void do_setpriority(priority_t priority);
 
 #endif                          /* SCHEDULER_H */
+

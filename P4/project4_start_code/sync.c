@@ -31,37 +31,41 @@ static bool_t unblock_all(node_t *wait_enqueue)
 void lock_init(lock_t * l){
     /* No critical section; it is the caller's responsibility to make sure
        that locks are initialized only once */
+    l->node.next = &l->node;
+    l->node.prev = &l->node;
     l->status = UNLOCKED;
     queue_init(&l->wait_queue);
     l->held_task = NULL;
 }
 
 static int lock_acquire_helper(lock_t * l){
-  ASSERT(disable_count);
-  if (LOCKED == l->status) {
-    current_running->blocking_lock = (void*)l;
-    pcb_t* cur_task = current_running;
-    lock_t* cur_lock;
-    while (cur_task){
-      pcb_t* tmp_task;
-      cur_lock = (lock_t*)cur_task->blocking_lock;
-      if (cur_lock){
-        tmp_task = cur_lock->held_task;
-        if (tmp_task==current_running){
-          current_running->blocking_lock = NULL;
-          return 1;
-        }
-      }
-      else break;
-      cur_task = tmp_task;
+    ASSERT(disable_count);
+    if (LOCKED == l->status) {
+	current_running->blocking_lock = (void*)l;
+	pcb_t* cur_task = current_running;
+	lock_t* cur_lock;
+	while (cur_task){
+	    pcb_t* tmp_task;
+	    cur_lock = (lock_t*)cur_task->blocking_lock;
+	    if (cur_lock){
+		tmp_task = cur_lock->held_task;
+		if (tmp_task==current_running){
+		    current_running->blocking_lock = NULL;
+		    return 1;
+		}
+	    }
+	    else break;
+	    cur_task = tmp_task;
+	}
+	block(&l->wait_queue);
+	current_running->blocking_lock = NULL;
+    } else {
+	l->status = LOCKED;
     }
-    block(&l->wait_queue);
-    current_running->blocking_lock = NULL;
-  } else {
-    l->status = LOCKED;
-  }
-  
-  return 0;
+
+    // customization
+    enqueue(&current_running->lq, (node_t*)l);
+    return 0;
 }
 
 // Return 0 on succes
@@ -75,17 +79,32 @@ int lock_acquire(lock_t * l){
 }
 
 static void lock_release_helper(lock_t * l){
-  ASSERT(disable_count);
-  if (!unblock_one(&l->wait_queue)) {
-    l->status = UNLOCKED;
-  }
-  l->held_task = NULL;
-  
+    ASSERT(disable_count);
+    if (!unblock_one(&l->wait_queue)) {
+	l->status = UNLOCKED;
+    }
+    l->held_task = NULL;
+
+    // customization
+    node_t* lk;
+    node_t* lq = &current_running->lq;
+    int i = 3;
+    printf((i++)+5, 1, "lq %x ", lq);
+    for(lk = peek(lq); lk != NULL && lk != lq; lk = lk->next){
+	printf(i+5, 1, "lk %x ", lk);
+	printf(i+6, 1, "lk %x ", lk->prev);
+	printf(i+7, 1, "lk %x ", lk->next);
+	i++;
+	if((lock_t*)lk == l){
+	    lk->prev->next = lk->next;
+	    lk->next->prev = lk->prev;
+	    break;
+	}
+    }
 }
 
 void lock_release(lock_t * l){
     enter_critical();
-
     lock_release_helper(l);
     leave_critical();
 }

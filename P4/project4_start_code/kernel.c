@@ -28,9 +28,7 @@ static int invalid_syscall(void);
 static void init_syscalls(void);
 static void init_serial(void);
 static void initialize_pcb(pcb_t *p, pid_t pid, struct task_info *ti);
-static int do_spawn(const char *filename);
-static int do_kill(pid_t pid);
-static int do_wait(pid_t pid);
+
 
 extern void asm_start();
 
@@ -91,7 +89,6 @@ static void initialize_pcb(pcb_t *p, pid_t pid, struct task_info *ti)
     p->task_type = ti->task_type;
     p->priority = 1;
     p->status = FIRST_TIME;
-    printf(12, 20, "initializing %x", ti->entry_point);
     switch (ti->task_type) {
     case KERNEL_THREAD:
 //	p->kernel_tf.regs[29] = (uint32_t)stack_new();
@@ -112,6 +109,7 @@ static void initialize_pcb(pcb_t *p, pid_t pid, struct task_info *ti)
 
     // customization
     queue_init(&p->wait_queue);
+    queue_init((node_t*)&p->lq);
     p->kernel_tf.cp0_status = 0x00008001;
     p->user_tf.cp0_status = 0x00008001;
     int box;
@@ -251,11 +249,12 @@ int print_char(int line, int col, char c){
 }
 
 int spawn_times = 0;
-static int do_spawn(const char *filename)
+int do_spawn(const char *filename)
 {
     
     (void)filename;
     /* TODO */
+    spawn_times++;
     struct task_info ti;
     int i, j;
     int num_files = get_num_files();
@@ -284,8 +283,12 @@ static int do_spawn(const char *filename)
 	    break;
     }
 
-    if(j == NUM_PCBS && pcb[NUM_PCBS].status != EXITED)
+    // this project will never use up pcbs.
+    if(j == NUM_PCBS && pcb[NUM_PCBS-1].status != EXITED){
+	leave_critical();
 	return -1;
+    }
+    
     available_pcb = &pcb[j];
     
     // initialize pcb
@@ -301,7 +304,7 @@ static int do_spawn(const char *filename)
     return 0;
 }
 
-static int do_kill(pid_t pid)
+int do_kill(pid_t pid)
 {
   (void) pid;
   /* TODO */
@@ -310,18 +313,20 @@ static int do_kill(pid_t pid)
   else if(pid >= 32 || pid <= 0)
       return -1;
 
-  printf(4, 1, "killing %d at %x", pid, pcb[pid-1].entry_point);
+  enter_critical();
   pcb[pid-1].status = EXITED;
   // unblock_all(&pcb[pid-1].wait_queue);
-  int i = 1;
+
   while(!is_empty(&pcb[pid-1].wait_queue)){
-      printf(5, i++, "K");
       pcb_t* ready_node = (pcb_t*)dequeue(&pcb[pid-1].wait_queue);
       ready_node->status = READY;
       enqueue(&ready_queue, (node_t*)ready_node);
   }
-
+  leave_critical();
   // release all the mailboxes this process uses
+
+  // mailbox are protected by locks,
+  // so we do not create double critical regions
   int mbox;
   for(mbox = 0; mbox < 32; mbox++){
       if(pcb[pid-1].boxes[mbox] == 1){
@@ -329,14 +334,29 @@ static int do_kill(pid_t pid)
       }
   }
 
+  enter_critical();
   // move this node from any queue it is in
   pcb[pid-1].node.prev->next = pcb[pid-1].node.next;
   pcb[pid-1].node.next->prev = pcb[pid-1].node.prev;
-  
-  return -1;
+
+  // relaese all the locks this process holds
+  while(!is_empty(&pcb[pid-1].lq)){
+      lock_t* lock = ((lock_t*)dequeue(&pcb[pid-1].lq));
+      pcb_t *task;
+      while(!is_empty(&lock->wait_queue)){
+	  task = (pcb_t*)dequeue(&lock->wait_queue);
+	  task->status = READY;
+	  enqueue(&ready_queue, (node_t*)task);
+      }
+
+      lock->status = UNLOCKED;
+      lock->held_task = NULL;
+  }
+  leave_critical();
+  return 0;
 }
 
-static int do_wait(pid_t pid)
+int do_wait(pid_t pid)
 {
   (void) pid;
   /* TODO */
