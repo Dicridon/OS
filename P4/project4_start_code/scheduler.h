@@ -73,6 +73,8 @@ typedef struct pcb {
 
     node_t wait_queue;
     mbox_t boxes[32];
+    uint32_t kstack;
+    uint32_t ustack;
 }pcb_t;
 
 extern node_t ready_queue;

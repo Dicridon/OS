@@ -139,7 +139,7 @@ void semaphore_up(semaphore_t * s){
 
 //    if(s->semaphore_value++ <= 0 && !is_empty(&s->wait_queue))
     s->semaphore_value++;
-    if(is_empty(&s->wait_queue))
+    if(!is_empty(&s->wait_queue))
 	unblock_one(&s->wait_queue);
     
     leave_critical();

@@ -44,7 +44,7 @@ static void barrier_thread(int id)
     }
     ASSERT(NUM_ITERATIONS == value[id]);
     printf(LINE + id, COL, "Barrier thread %d: Passed\t", do_getpid());
-    do_exit();
+	do_exit();
 }
 
 void barrier1(void)

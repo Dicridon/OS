@@ -21,12 +21,5 @@ void init_process(void);
 void barrier1(void);
 void barrier2(void);
 void barrier3(void);
-void clock_thread(void);
-
-void thread2(void);
-void thread3(void);
-void num(void);
-void scroll_th(void);
-void caps(void);
 
 #endif

@@ -53,6 +53,10 @@ void __attribute__((section(".entry_function"))) _start(void)
 	 */
 	for (i = 0; i < NUM_TASKS; ++i) {
 	    pcb[i].status = EXITED;
+
+	    // extra info
+	    pcb[i].kstack = (uint32_t)stack_new();
+	    pcb[i].ustack = (uint32_t)stack_new();
 	}
 
 	init_syscalls();
@@ -90,12 +94,15 @@ static void initialize_pcb(pcb_t *p, pid_t pid, struct task_info *ti)
     printf(12, 20, "initializing %x", ti->entry_point);
     switch (ti->task_type) {
     case KERNEL_THREAD:
-	p->kernel_tf.regs[29] = (uint32_t)stack_new();
+//	p->kernel_tf.regs[29] = (uint32_t)stack_new();
+	p->kernel_tf.regs[29] = p->kstack;
 	p->nested_count = 1;
 	break;
     case PROCESS:
-	p->kernel_tf.regs[29] = (uint32_t)stack_new();
-	p->user_tf.regs[29] = (uint32_t)stack_new();
+//	p->kernel_tf.regs[29] = (uint32_t)stack_new();
+//	p->user_tf.regs[29] = (uint32_t)stack_new();
+	p->kernel_tf.regs[29] = p->kstack;
+	p->user_tf.regs[29] = p->ustack;
 	p->nested_count = 0;
 	break;
     default:

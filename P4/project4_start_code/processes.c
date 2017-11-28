@@ -27,14 +27,6 @@ void init_process(void)
 	spawn("barrier1");
 	spawn("barrier2");
 	spawn("barrier3");
-	spawn("clock_thread");
-	spawn("thread2");
-	spawn("thread3");
-	spawn("num");
-	spawn("caps");
-	spawn("scroll_th");
-	spawn("PROC1");
-	spawn("PROC2");
 	exit();
 }
 

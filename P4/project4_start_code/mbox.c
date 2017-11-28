@@ -102,6 +102,11 @@ mbox_t do_mbox_open(const char *name)
     MessageBoxen[empty_box].unused = 0;
     MessageBoxen[empty_box].number_of_users = 1;
 
+
+
+    // I write strcpy, but it does not work
+    // I must use bcopy
+    // I do not know why.
     bcopy(name, MessageBoxen[empty_box].name, strlen(name));
     
     // add this box to current_running's box list
