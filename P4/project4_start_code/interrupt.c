@@ -97,10 +97,10 @@ void system_call_helper(int fn, int arg1, int arg2, int arg3)
 {
     int ret_val = 0;
 
+//    static int a = 1;
+//    printf(20+a, 1, "current fn: %d", fn);
+//    a++;
 
-//    printf(3, 1, "current entry: %x", current_running->entry_point);
-//    printf(4, 1, "current nested_count: %x", current_running->nested_count);
-//    printf(5, 1, "current fn: %d", fn);
 
     
     ASSERT2(current_running->nested_count == 0,

@@ -17,27 +17,27 @@
  * They are exposed to kernel/threads in scheduler.h, eg do_yield()
  */
 typedef enum {
-    SYSCALL_YIELD=0,
-    SYSCALL_EXIT,
-    SYSCALL_GETPID,
-    SYSCALL_GETPRIORITY,
-    SYSCALL_SETPRIORITY,
-    SYSCALL_SLEEP,
-    SYSCALL_SHUTDOWN,
-    SYSCALL_WRITE_SERIAL,
-    SYSCALL_PRINT_CHAR,
-    SYSCALL_SPAWN,
-    SYSCALL_KILL,
-    SYSCALL_WAIT,
-    SYSCALL_MBOX_OPEN,
-    SYSCALL_MBOX_CLOSE,
-    SYSCALL_MBOX_SEND,
-    SYSCALL_MBOX_RECV,
-    SYSCALL_TIMER,
-    SYSCALL_LOCK_INIT,
-    SYSCALL_LOCK_ACQUIRE,
-    SYSCALL_LOCK_RELEASE,
-    NUM_SYSCALLS
+    SYSCALL_YIELD=0,         // 0
+    SYSCALL_EXIT,            // 1
+    SYSCALL_GETPID,          // 2
+    SYSCALL_GETPRIORITY,     // 3
+    SYSCALL_SETPRIORITY,     // 4
+    SYSCALL_SLEEP,           // 5
+    SYSCALL_SHUTDOWN,        // 6
+    SYSCALL_WRITE_SERIAL,    // 7
+    SYSCALL_PRINT_CHAR,      // 8
+    SYSCALL_SPAWN,           // 9
+    SYSCALL_KILL,            // 10
+    SYSCALL_WAIT,            // 11
+    SYSCALL_MBOX_OPEN,       // 12
+    SYSCALL_MBOX_CLOSE,      // 13
+    SYSCALL_MBOX_SEND,       // 14
+    SYSCALL_MBOX_RECV,       // 15
+    SYSCALL_TIMER,           // 16
+    SYSCALL_LOCK_INIT,       // 18
+    SYSCALL_LOCK_ACQUIRE,    // 19
+    SYSCALL_LOCK_RELEASE,    // 20
+    NUM_SYSCALLS             // 21
 } syscall_t;
 
 /* Assertion macros */

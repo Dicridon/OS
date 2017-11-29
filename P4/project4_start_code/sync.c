@@ -41,8 +41,10 @@ void lock_init(lock_t * l){
 }
 
 void do_lock_init(int l){
-    if(l >= 0 && l <= 31)
+    if(l >= 0 && l <= 31){
+	printf(15, 1, "init a lock %d", l);
 	lock_init(&kernel_locks[l]);
+    }
 }
 
 static int lock_acquire_helper(lock_t * l){
@@ -71,7 +73,7 @@ static int lock_acquire_helper(lock_t * l){
     }
 
 //    // customization
-//    enqueue(&current_running->lq, (node_t*)l);
+    enqueue(&current_running->lq, (node_t*)l);
     return 0;
 }
 
@@ -86,8 +88,9 @@ int lock_acquire(lock_t * l){
 }
 
 int do_lock_acquire(int l){
-    if(l >= 0 && l <= 31)
+    if(l >= 0 && l <= 31){
 	return lock_acquire(&kernel_locks[l]);
+    }
     else
 	return -1;
 }

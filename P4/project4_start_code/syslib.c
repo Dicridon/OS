@@ -95,6 +95,8 @@ int acquire_a_lock(int l){
     invoke_syscall(SYSCALL_LOCK_ACQUIRE, l, IGNORE, IGNORE);
 }
 void release_a_lock(int l){
+    print_str(27, 1, "******* system release lock *******");
+    
     invoke_syscall(SYSCALL_LOCK_RELEASE, l, IGNORE, IGNORE);
 }
 

@@ -64,7 +64,7 @@ void __attribute__((section(".entry_function"))) _start(void)
 	init_mbox();
 
 	do_spawn("init");
-	printf(1, 1, "24:37");
+	printf(1, 1, "17:37");
 	/* Schedule the first task */
 	enter_critical();
 	scheduler_entry();
@@ -109,7 +109,7 @@ static void initialize_pcb(pcb_t *p, pid_t pid, struct task_info *ti)
 
     // customization
     queue_init(&p->wait_queue);
-    queue_init((node_t*)&p->lq);
+    queue_init(&p->lq);
     p->kernel_tf.cp0_status = 0x00008001;
     p->user_tf.cp0_status = 0x00008001;
     int box;
@@ -311,6 +311,7 @@ int do_kill(pid_t pid)
 {
   (void) pid;
   /* TODO */
+
   if(pid == current_running->pid)
       return -1;
   else if(pid >= 32 || pid <= 0)
