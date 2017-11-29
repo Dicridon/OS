@@ -13,7 +13,7 @@
 #include "mbox.h"
 
 #include "files.h"
-
+#include "sync.h"
 #define NUM_TASKS 	(32)
 #define NUM_PCBS      (NUM_TASKS)
 
@@ -185,6 +185,9 @@ static void init_syscalls()
 	syscall[SYSCALL_MBOX_SEND] = (int (*)()) &do_mbox_send;
 	syscall[SYSCALL_MBOX_RECV] = (int (*)()) &do_mbox_recv;
 	syscall[SYSCALL_TIMER] = (int (*)()) &get_timer;
+	syscall[SYSCALL_LOCK_INIT] = (int (*)()) &do_lock_init;
+	syscall[SYSCALL_LOCK_ACQUIRE] = (int (*)()) &do_lock_acquire;
+	syscall[SYSCALL_LOCK_RELEASE] = (int (*)()) &do_lock_release;
 }
 
 /* Used for debugging */

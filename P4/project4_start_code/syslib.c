@@ -88,7 +88,15 @@ void timer(void)
   return invoke_syscall(SYSCALL_TIMER, IGNORE, IGNORE, IGNORE);
 }
 
-
+void init_a_lock(int l){
+    invoke_syscall(SYSCALL_LOCK_INIT, l, IGNORE, IGNORE);
+}
+int acquire_a_lock(int l){
+    invoke_syscall(SYSCALL_LOCK_ACQUIRE, l, IGNORE, IGNORE);
+}
+void release_a_lock(int l){
+    invoke_syscall(SYSCALL_LOCK_RELEASE, l, IGNORE, IGNORE);
+}
 
 
 

@@ -64,6 +64,10 @@ void lock_init(lock_t *lock);
 int  lock_acquire(lock_t *lock); // return 0 on success, 1 on failure (extra credit)
 void lock_release(lock_t *lock);
 
+void do_lock_init(int l);
+int do_lock_acquire(int l);
+void do_lock_release(int l);
+
 // Initialize c
 void condition_init(condition_t * c);
 

@@ -76,5 +76,7 @@ int kill(pid_t pid);
  */
 int wait(pid_t pid);
 
-
+void init_a_lock(int l);
+int acquire_a_lock(int l);
+void release_a_lock(int l);
 #endif

@@ -6,6 +6,8 @@
 #include "util.h"
 #include "printf.h"
 
+lock_t kernel_locks[32];
+
 /*TODO operate */
 static bool_t unblock_one(node_t *wait_enqueue)
  {
@@ -38,6 +40,11 @@ void lock_init(lock_t * l){
     l->held_task = NULL;
 }
 
+void do_lock_init(int l){
+    if(l >= 0 && l <= 31)
+	lock_init(&kernel_locks[l]);
+}
+
 static int lock_acquire_helper(lock_t * l){
     ASSERT(disable_count);
     if (LOCKED == l->status) {
@@ -63,8 +70,8 @@ static int lock_acquire_helper(lock_t * l){
 	l->status = LOCKED;
     }
 
-    // customization
-    enqueue(&current_running->lq, (node_t*)l);
+//    // customization
+//    enqueue(&current_running->lq, (node_t*)l);
     return 0;
 }
 
@@ -76,6 +83,13 @@ int lock_acquire(lock_t * l){
     leave_critical();
 
     return result;
+}
+
+int do_lock_acquire(int l){
+    if(l >= 0 && l <= 31)
+	return lock_acquire(&kernel_locks[l]);
+    else
+	return -1;
 }
 
 static void lock_release_helper(lock_t * l){
@@ -107,6 +121,11 @@ void lock_release(lock_t * l){
     enter_critical();
     lock_release_helper(l);
     leave_critical();
+}
+
+void do_lock_release(int l){
+    if(l >= 0 && l <= 31)
+	lock_release(&kernel_locks[l]);
 }
 
 /* TODO: Initialize a condition variable */
