@@ -11,9 +11,10 @@
   .equ  STACK, TF_REG29
   /* Offset of field nested_count in a PCB */
   .equ  NESTED_COUNT, 320
-
+  .equ  PID, 328
+  .equ  PTBASE, 356
 .macro PUTCHAR ch label
-	  addi  k0,$0,10000
+	addi  k0,$0,10000
 	\label:
 	addi  k0,k0,-1
 	bne k0,$0,\label
@@ -24,18 +25,18 @@
 .endm
 
 .macro STI
-  mfc0    k0, CP0_STATUS
-  li      k1, (STATUS_CU0 | 0x1)
-  or      k0, k1
-  mtc0    k0, CP0_STATUS
+	  mfc0    k0, CP0_STATUS
+	  li      k1, (STATUS_CU0 | 0x1)
+	  or      k0, k1
+	  mtc0    k0, CP0_STATUS
 .endm
 
 .macro CLI
-  mfc0    k0, CP0_STATUS
-  li      k1, (STATUS_CU0 | 0x1)
-  or      k0, k1
-  xori    k0, 0x1
-  mtc0    k0, CP0_STATUS
+	  mfc0    k0, CP0_STATUS
+	  li      k1, (STATUS_CU0 | 0x1)
+	  or      k0, k1
+	  xori    k0, 0x1
+	  mtc0    k0, CP0_STATUS
 .endm
 
 /* Do not change any of these macros! */
@@ -316,14 +317,14 @@ END(simple_handler)
 NESTED(handle_syscall,0,sp)
 	SAVE_CONTEXT(USER)
 	//RESTORE_CONTEXT(KERNEL)
-  add   a3,a2,$0
-  add   a2,a1,$0
-  add   a1,a0,$0
-  add   a0,v0,$0
+	add   a3,a2,$0
+	add   a2,a1,$0
+	add   a1,a0,$0
+	add   a0,v0,$0
 
-  jal system_call_helper
+	jal system_call_helper
 
-  LEAVE_CRITICAL
+	LEAVE_CRITICAL
 	RESTORE_CONTEXT(USER)
 	j return_from_exception
 END(handle_syscall)
@@ -386,12 +387,50 @@ END(tlb_flush)
 
 //TO DO
 LEAF(set_pt)
-
+	li 	k0, 0xffffffc0
+	mfc0 	k1, CP0_ENTRYHI
+	nop
+	and 	k1, k1, k0
+	la 	k0, current_running
+	lw	k0, PID(k0)
+	or	k1, k1, k0
+	mtc0	k1, CP0_ENTRYHI
+	nop
+	jr ra
+	nop
 END(set_pt)
 
 //TO DO
 NESTED(handle_tlb,0,sp)
-   jal handle_tlb_c
+	// find the bad virtual address
+	la	k0, current_running
+	lw 	k0, (k0)
+	addiu 	k0, k0, KERNEL
+	mfc0	k1, CP0_BADVADDR
+	// pass this address PCB
+	sw	k1, TF_BADVADDR(k0)
+	jal	handle_tlb_c
+	nop
+	// OK, recall that handle_tlb_c has prepared the two page entrances
+	// what we need to do is to find the even number one and load
+	// the pair to EntryLo0 and EntryLo1
+	// EntryHi should be prepared by hardware(Computer Architecture, page 57)
+	// So now find the page table base
+	// add VPN of the even number page(badvaddr & 0xffffe000, this will clear the
+	// low 13 bits, 12 bits are in-page offset, 1 bit to find the even page number)
+	la	k0, current_running
+	lw	k0, (k0)
+	lw	k0, PTBASE(k0)  // page table base
+	srl     k1, 13          // offset in page table(even page)
+	add	k0, k0, k1      // PTE address
+	lw 	k1, (k0)
+	lw 	k0, 4(k0)
+	mtc0	k1, CP0_ENTRYLO0
+	mtc0	k0, CP0_ENTRYLO1
+	nop
+	tlbwr
+	nop
+	j 	return_from_exception
 END(handle_tlb)
 
 // --------------------------------- P5 end --------------------------------

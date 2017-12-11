@@ -56,6 +56,7 @@ void scheduler(){
      
      ASSERT(NULL != current_running);
      ++current_running->entry_count;
+     set_pt();
 }
 
 int lte_deadline(node_t *a, node_t *b) {

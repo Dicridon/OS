@@ -21,11 +21,24 @@ enum {
 
   /* Constants to simulate a very small physical memory. */
   PAGEABLE_PAGES = 256,
+
+  CLEAR_PAGE_OFFSET = (0xfffff000),
 };
 
 /* TODO: Structure of an entry in the page map */
 typedef struct {
     // design here
+    uint32_t VPN;
+    uint32_t PFN;    // immutable
+    uint32_t paddr;  // immutable
+    uint32_t vaddr;
+    pid_t pid;
+    bool_t unused;
+    bool_t dirty;
+    bool_t valid;
+    bool_t pinned;
+    bool_t global;
+    bool_t UC;
 } page_map_entry_t;
 
 

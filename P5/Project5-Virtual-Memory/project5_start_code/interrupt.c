@@ -268,10 +268,45 @@ void fake_irq7(void) {
 #endif
 }
 
+
+// this function ensure that PTEs needed are always valid
+// the rest should be done in MIPS assembly language
 void handle_tlb_c(void)
 {
-    printk("\n\n\nHandle TLB requirement!!!\n\n\n");
-    while (1) {
-    ;
+    // check if there is a valid page table entrance
+    uint32_t badvaddr = current_running->kernel_tf.cp0_badvaddr;
+    uint32_t* PTEBase = (uint32_t*)current_running->page_table;
+    uint32_t VPN = badvaddr >> 12;
+    uint32_t PTE = PTEBase[VPN];
+
+    if(!PTE&PE_V){
+	// not valid, find a page frame, fill it
+	int pfn = page_alloc(FALSE);
+	PTEBase[VPN] = (0 | (((uint32_t)page_addr(pfn) & CLEAR_PAGE_OFFSET)) | PE_V);
+	if(badvaddr <= current_running->entry_point + current_running->size){
+	    current_running->programm_offset = badvaddr - current_running->entry_point;
+	    uint32_t srce_addr = current_running->entry_point + current_running->programm_offset;
+	    uint32_t srce_addr_pn = srce_addr & CLEAR_PAGE_OFFSET;   // virtual page number in disk
+	    uint32_t dest_addr = PTEBase[VPN] & CLEAR_PAGE_OFFSET;
+	    bcopy((char*)srce_addr_pn, (char*)dest_addr, 0x1000);
+	}
+    } // no valid pagetable entrance
+
+    // if this page is an odd page
+    if(VPN & 0x1){
+	// page allocation here is not necessary since it's on-demand paging
+	if(!PTEBase[VPN-1]&PE_V){
+	    int pfn = page_alloc(FALSE);
+	    PTEBase[VPN-1] = (0 | (((uint32_t)page_addr(pfn)>>12)<<12));
+	} // the even page in page pair is not valid 
     }
+    // if this page is an even page
+    else{
+	if(!PTEBase[VPN+1]&PE_V){
+	    int pfn = page_alloc(FALSE);
+	    PTEBase[VPN+1] = (0 | (((uint32_t)page_addr(pfn)>>12)<<12));
+	} // the odd page in page pair is not valid 
+    }
+    // Now we have prepared all the page table entrance,
+    // time to go back to entry.S, let MIPS handle_tlb do the rest, refill TLB
 }

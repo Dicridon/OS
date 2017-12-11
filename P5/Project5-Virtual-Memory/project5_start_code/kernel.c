@@ -56,7 +56,7 @@ void __attribute__( ( section( ".entry_function" ) ) ) _start( void ) {
     init_memory();
 
     for ( i = 0; i < NUM_TASKS; ++i ) {
-        initialize_pcb( &pcb[ i ], i, &task[ i ] );
+        initialize_pcb( &pcb[ i ], i+1, &task[ i ] );
         enqueue( &ready_queue, (node_t *) &pcb[ i ] );
     }
     srand( get_timer() ); /* using a random value */

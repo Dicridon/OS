@@ -63,26 +63,30 @@ typedef struct Trapframe {
 typedef struct pcb {
      /* Do not change the order of this! entry.S depends on the precise ordering of fields following this
         comment */
-     node_t node;
-     trapframe_t kernel_tf;
-     trapframe_t user_tf;
+    node_t node;
+    trapframe_t kernel_tf;
+    trapframe_t user_tf;
 
-     int nested_count;
-     /* Ok, you may change the order from now on*/
-     uint32_t entry_point;
-     pid_t pid;
-     task_type_t task_type;
-     status_t status;
-     uint32_t entry_count; // how many times this task has been pre-emtped to
-     uint64_t deadline;
-     /* Extra credit */
-     priority_t priority;
-     void* blocking_lock;
+    int nested_count;
+    /* Ok, you may change the order from now on*/
+    uint32_t entry_point;
+    pid_t pid;
+    task_type_t task_type;
+    status_t status;
+    uint32_t entry_count; // how many times this task has been pre-emtped to
+    uint64_t deadline;
+    /* Extra credit */
+    priority_t priority;
+    void* blocking_lock;
 
-     // for virtual memory
-     uint32_t page_table;
-     uint32_t size;
-     uint32_t loc;
+    // for virtual memory
+    uint32_t page_table;
+    uint32_t size;
+    uint32_t loc;
+    // this field is used to record the offset of badvaddr from the entry_point
+    // I use this because on-demand paging requires record of disk memory address
+    // this field can help
+    uint32_t programm_offset;
 } pcb_t;
 
 extern node_t ready_queue;
