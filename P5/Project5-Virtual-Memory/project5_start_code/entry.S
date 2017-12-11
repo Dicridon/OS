@@ -403,6 +403,7 @@ END(set_pt)
 //TO DO
 NESTED(handle_tlb,0,sp)
 	// find the bad virtual address
+	SAVE_CONTEXT(USER)	
 	la	k0, current_running
 	lw 	k0, (k0)
 	addiu 	k0, k0, KERNEL
@@ -430,7 +431,10 @@ NESTED(handle_tlb,0,sp)
 	nop
 	tlbwr
 	nop
-	j 	return_from_exception
+	LEAVE_CRITICAL
+	RESTORE_CONTEXT(USER)
+	j return_from_exception
+	nop
 END(handle_tlb)
 
 // --------------------------------- P5 end --------------------------------

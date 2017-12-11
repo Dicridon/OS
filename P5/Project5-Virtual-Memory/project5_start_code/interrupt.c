@@ -273,6 +273,8 @@ void fake_irq7(void) {
 // the rest should be done in MIPS assembly language
 void handle_tlb_c(void)
 {
+    printf(3, 1, "Now tlb miss detected");
+    
     // check if there is a valid page table entrance
     uint32_t badvaddr = current_running->kernel_tf.cp0_badvaddr;
     uint32_t* PTEBase = (uint32_t*)current_running->page_table;
