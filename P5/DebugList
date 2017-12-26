@@ -1,0 +1,1 @@
+kernel.c: 100, printf(1, 1, "setup_page_table ok")

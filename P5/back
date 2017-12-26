@@ -1,0 +1,13 @@
+    if(!find){
+	node_t* page = dequeue(&pageFIFO);
+	free_index = ((page_map_entry_t*)page)->index;
+	int pid = page_map[free_index].pid;
+	int VPN2 = page_map[free_index].vaddr & 0xffffe000;
+	uint32_t* page_table = (uint32_t*)pcb[pid-1].page_table;
+	page_table[page_map[free_index].vaddr>>12] = 0;
+	tlb_flush(VPN2 | pid);
+    }
+
+    if(!pinned){
+	enqueue(&pageFIFO, (node_t*)&page_map[free_index]);
+    }
