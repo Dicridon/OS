@@ -173,3 +173,25 @@ void p6fs_destroy(void* private_data)
 }
 
 
+unsigned int path_ref(const char *path){
+
+    char *duppath = strdup(path);
+    char* token = strtok(duppath, "/");
+    unsigned int current_dir;             // inode of current directory
+    // from root directory
+    if(duppath[0] == '/'){
+	// do something
+	current_dir = root_dir;
+    }
+    else{
+	// from working directory
+	current_dir = working_dir;
+    }
+    while(token){
+	// do something
+	
+	// next token
+	token = strtok(NULL, "/");
+    }
+    free(duppath);
+}

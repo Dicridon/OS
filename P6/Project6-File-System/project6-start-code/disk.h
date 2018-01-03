@@ -3,9 +3,9 @@
 
 #include <sys/types.h>
 
-#define SECTOR_SIZE 4096   //use 4k block size
+#define SECTOR_SIZE 4096   // use 4k block size
 
-//NOT define a MAX value, keep carefully for your disk R/W
+// NOT define a MAX value, keep carefully for your disk R/W
 
 int device_open(const char *path);
 void device_close();
