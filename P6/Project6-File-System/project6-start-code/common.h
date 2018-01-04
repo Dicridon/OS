@@ -21,25 +21,20 @@
 // each block is 4KB
 #define BLOCK_SIZE 4096
 
-// 65536 groups track 2GB space in total, so I used 64KB space to manage  2GB space
-#define GROUP_NUM 65536    
-#define INODE_TABLE_SIZE 65536
+// 131072 groups track 4GB space in total, that is 1048576 inodes in total
+// , so I used 128KB space to manage  4GB space
 
-const unsigned char GI[GROUP_SIZE] = {
-    0x80,
-    0x40,
-    0x20,
-    0x10,
-    0x08,
-    0x04,
-    0x02,
-    0x01
-};
+#define K ((unsigned long)1024)
+#define M (((unsigned long)1024)*K)
+#define G (((unsigned long)1024)*M)
+
+#define GROUP_NUM (((4*G)/(4*K))/GROUP_SIZE)     // 131072
+#define INODE_NUM ((GROUP_SIZE) * (GROUP_NUM))   // 1M inodes
+#define MAX_OPEN_FILE 1024
 
 typedef enum {
     FILE_T,
     DIR_T,
-    HLINK_T,
     SYMLINK_T,
 } node_type;
 
@@ -48,29 +43,31 @@ struct superblock_t{
     // complete it
     unsigned int magic;
     unsigned int root_dir;         // address of root directory
+    unsigned int root_dir_inode;
+    unsigned int root_dir_size;    // how many blocks root directory uses
     unsigned int num_dblock;       // number of data blocks
     unsigned int num_inodes;       // number of i-nodes
-    struct inode_t* inode_table;      // base address of i-node table
-    char* dblock_base;      // base address of data blocks
-    unsigned char inode_bitmap[INODE_TABLE_SIZE];
-    unsigned char dblock_bitmap[GROUP_NUM];
+    unsigned int inode_table_base;      // base address of i-node table
+    unsigned int dblock_base;      // base address of data blocks
+    unsigned int inode_bitmap_base;
+    unsigned int dblock_bitmap_base;
     // this struct is well aligned
 };
 
+
+// size of struct inode_t is 32 bytes
 struct inode_t{
     // complete it
     node_type mode;
     unsigned int size;           // enough to hold 4 GB file
     unsigned int nlinks;         // hard links and symbol links
-    unsigned int parent_ino;     // inode number of directory this file belongs to 
-    char *direct_pointer[10];    // pointers to data block, each manage 4KB space
-    char ***one_level_pointer;   // two level addressing will give you a char pointer
-    char ****two_level_pointer;  // three level addressing will give you a char pointer
+    unsigned int direct_pointer[4];    // pointers to data block, each manage 4KB space
+    unsigned int one_level_pointer;   // two level addressing will give you a char pointer
 };
 
 
 struct file_inode{
-    char file_name[128];
+    char file_name[60];
     unsigned int ino;
 };
 
@@ -87,26 +84,26 @@ struct superblock{
     struct superblock_t *sb;
     // Add what you need, Like locks
     // thinking
+    pthread_mutex_t superblock_lock;
 };
 
 struct inode{
     struct inode_t *inode;
     // Add what you need, Like locks
     // thinking
+    pthread_mutex_t inode_lock;
 };
  
 /*Your file handle structure, should be kept in <fuse_file_info>->fh
  (uint64_t see fuse_common.h), and <fuse_file_info> used in all file operations  */
+
+
 struct file_info{
     // complete it
     struct inode_t *node;
     unsigned int fd;         // maybe we may use inode number
-    char avai;
+    int flag;
 };
-
-
-const unsigned int root_dir = 0;
-unsigned int working_dir;
 
 
 //Interf.  See "fuse.h" <struct fuse_operations>
