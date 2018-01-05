@@ -30,7 +30,7 @@
 
 #define GROUP_NUM (((4*G)/(4*K))/GROUP_SIZE)     // 131072
 #define INODE_NUM ((GROUP_SIZE) * (GROUP_NUM))   // 1M inodes
-#define MAX_OPEN_FILE 1024
+#define MAX_OPEN_FILE 128
 
 typedef enum {
     FILE_T,
@@ -102,6 +102,7 @@ struct file_info{
     // complete it
     struct inode_t *node;
     unsigned int fd;         // maybe we may use inode number
+    int allocated;
     int flag;
 };
 

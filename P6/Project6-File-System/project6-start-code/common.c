@@ -256,6 +256,7 @@ int p6fs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offs
     getinode(&inode, inode_num);
     
     files = (struct file_inode*)malloc(inode.size);
+    readdirfile(files, inode.size, inode.direct_pointer, inode.one_level_pointer);
 
     if(inode.mode != DIR_T)
 	return -ENOENT;
@@ -305,10 +306,35 @@ int p6fs_open(const char *path, struct fuse_file_info *fileInfo)
   S1: look up and get dentry of the path
   S2: create file handle! Do NOT lookup in read() or write() later
   */
-    
 
+    int inode_num = pathref(path);
+
+    if(inode_num == -ENOENT)
+	return -ENOENT;
+
+    struct inode_t inode;
+    getinode(&inode, inode_num);
+
+    int i, find = 0;
+    for(i = 0; i < MAX_OPEN_FILE; i++){
+	if(fd_table[i].allocated == 0){
+	    find = 1;
+	    break;
+	}
+    }
+
+    if(!find){
+	return -ENOENT;
+    }
+
+    fd_table[i].node = (struct inode_t*)malloc(sizeof(struct inode_t));
+    fd_table[i].allocated = 1;
+    fd_table[i].flag = fileInfo->flags;
     //assign and init your file handle
-    struct file_info *fi;
+//    struct file_info *fi;
+
+    if((fd_table[i].flag & 3) != O_RDONLY)
+	return -EACCES;
     
     //check open flags, such as O_RDONLY
     //O_CREATE is tansformed to mknod() + open() by fuse ,so no need to create file here
@@ -318,7 +344,7 @@ int p6fs_open(const char *path, struct fuse_file_info *fileInfo)
      }
      */
     
-    fileInfo->fh = (uint64_t)fi;
+    fileInfo->fh = (uint64_t)(fd_table+i);
     return 0;
 }
 
@@ -403,6 +429,7 @@ static int p6_mount(struct superblock_t *sb){
 	fd_table[i].fd = i;
 	fd_table[i].flag = 0;
 	fd_table[i].node = NULL;
+	fd_table[i].allocated = 0;
     }
 
     rootdir.ino = 0;
