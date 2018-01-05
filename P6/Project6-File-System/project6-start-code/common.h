@@ -113,7 +113,7 @@ struct file_info{
 //dir operations
 int p6fs_mkdir(const char *path, mode_t mode);
 int p6fs_rmdir(const char *path);
-int p6fs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fileInfo);
+int p6fs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fileInfo);  
 // int p6fs_opendir(const char *path, struct fuse_file_info *fileInfo);//optional
 // int p6fs_releasedir(const char *path, struct fuse_file_info *fileInfo);//optional
 // int p6fs_fsyncdir(const char *path, int datasync, struct fuse_file_info *fileInfo);//optional
@@ -125,7 +125,7 @@ int p6fs_link(const char *path, const char *newpath);
 int p6fs_unlink(const char *path);
 // int p6fs_readlink(const char *path, char *link, size_t size);//optional
 
-int p6fs_open(const char *path, struct fuse_file_info *fileInfo);
+int p6fs_open(const char *path, struct fuse_file_info *fileInfo); 
 int p6fs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fileInfo);
 int p6fs_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fileInfo);
 int p6fs_truncate(const char *path, off_t newSize);
@@ -144,4 +144,29 @@ int p6fs_statfs(const char *path, struct statvfs *statInfo);
 void* p6fs_init(struct fuse_conn_info *conn);
 // void p6fs_destroy(void* private_data);//optional
 
+
+
+
+
+
+
+
+
+/// TODO list
+// [    ]p6fs_mkdir
+// [TODO]p6fs_rmdir
+// [    ]p6fs_readdir
+// [TODO]p6fs_mknod
+// [TODO]p6fs_symlink
+// [TODO]p6fs_link
+// [TODO]p6fs_unlink
+// [    ]p6fs_open
+// [TODO]p6fs_read
+// [TODO]p6fs_write
+// [TODO]p6fs_truncate
+// [TODO]p6fs_release
+// [    ]p6fs_getattr
+// [TODO]p6fs_rename
+// [TODO]p6fs_statfs
+// [    ]p6fs_init
 #endif
