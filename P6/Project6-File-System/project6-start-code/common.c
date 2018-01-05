@@ -1,5 +1,7 @@
 #include "common.h"
 
+// #define FUSE_USE_VERSION 26
+
 #define GI1 (0)
 #define GI2 (1)
 #define GI3 (2)
@@ -110,14 +112,16 @@ struct superblock_t glo_superblock;
 struct file_info fd_table[MAX_OPEN_FILE] ;
 
 
+
+// please allocate some memory to fip before calling function readdirfile
 static void readdirfile(struct file_inode* fip, unsigned int dirsize, unsigned int* base, unsigned int ref){
-    unsigned int blocks = dirsize / SECTOR_SIZE;
+    int blocks = dirsize / SECTOR_SIZE;
     blocks += (blocks % SECTOR_SIZE == 0);
     unsigned char buffer[SECTOR_SIZE];
 
-    unsigned int limit = (blocks <= 4) ? blocks : 4;
+    int limit = (blocks <= 4) ? blocks : 4;
     
-    for(unsigned int i = 0; i < limit; i++){
+    for(int i = 0; i < limit; i++){
 	device_read_sector(buffer, base[i]);
 	memcpy((char*)fip+i*SECTOR_SIZE, buffer, (dirsize > SECTOR_SIZE) ? SECTOR_SIZE : dirsize);
 	dirsize -= SECTOR_SIZE;
@@ -126,16 +130,16 @@ static void readdirfile(struct file_inode* fip, unsigned int dirsize, unsigned i
 	return;
 
     // read the blocks in reference blocks
-    unsigned int preblock = blocks;
+    int preblock = blocks;
     blocks -= 4;
-    unsigned int references[SECTOR_SIZE/4];
+    int references[SECTOR_SIZE/4];
     device_read_sector(buffer, ref);
     memcpy(references, buffer, SECTOR_SIZE);
 
 
     limit = (blocks <= 4) ? blocks : 4;
     
-    for(unsigned int i = 0; i < limit; i++){
+    for(int i = 0; i < limit; i++){
 	device_read_sector(buffer, references[i]);
 	memcpy((char*)fip+(i+preblock)*SECTOR_SIZE,
 	       buffer,
@@ -159,14 +163,14 @@ static void nullptrcheck(void* p){
     }
 }
 
-static unsigned int pathref(const char* path){
+static int pathref(const char* path){
     char* innerpath = (char*)malloc(strlen(path) * sizeof(char));
     nullptrcheck(innerpath);
     const struct dentry *currdir;
     strcpy(innerpath, path);
     char* token;
     token = strtok(innerpath, "/");
-    unsigned token_num = 0;
+    int token_num = 0;
     while(token){
 	token_num++;
 	token = strtok(NULL, "/");
@@ -175,10 +179,9 @@ static unsigned int pathref(const char* path){
     innerpath = (char*)malloc(strlen(path) * sizeof(char));
     nullptrcheck(innerpath);
 
-    unsigned int items;
-    unsigned int i;
-//    unsigned char buffer[SECTOR_SIZE];
-    unsigned inode_num;
+    int items;
+    int i;
+    int inode_num = ROOT_INODE;
     struct dentry tempdir;
     struct inode_t tempinode;
     tempdir.fi = (struct file_inode*)malloc(1028*128*sizeof(struct file_inode));
@@ -198,15 +201,17 @@ static unsigned int pathref(const char* path){
 		    break;
 		}
 	    }
-	    if(find == 0)
-		return ENOENT;
+	    if(find == 0){
+		inode_num = -ENOENT;
+		goto leave;
+	    }
 	    getinode(&tempinode, inode_num);
 	    if((tempinode.mode == FILE_T || tempinode.mode == SYMLINK_T) && token_num == 1){
-		return inode_num;
+		break;
 	    }
 	    else if((tempinode.mode == FILE_T || tempinode.mode == SYMLINK_T) && token_num != 1){
-		printf("Not a directory: %s", path);
-		return ENOENT;
+		inode_num = -ENOENT;
+		goto leave;
 	    }
 
 	    tempdir.dir_size = tempinode.size;
@@ -220,6 +225,11 @@ static unsigned int pathref(const char* path){
 	    token_num--;
 	}
     }
+
+leave:
+    free(innerpath);
+    free(tempdir.fi);
+    return inode_num;
 }
 
 
@@ -237,7 +247,25 @@ int p6fs_rmdir(const char *path)
 
 int p6fs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fileInfo)
 {
+    int inode_num = pathref(path);
+    if(inode_num == -ENOENT)
+	return -ENOENT;
+    struct file_inode *files;
+    struct inode_t inode;
+
+    getinode(&inode, inode_num);
     
+    files = (struct file_inode*)malloc(inode.size);
+
+    if(inode.mode != DIR_T)
+	return -ENOENT;
+    else{
+	for(unsigned long i = 0; i < inode.size / sizeof(struct file_inode); i++){
+	    if(filler(buf, files[i].file_name, NULL, 0) == 1)
+		break;
+	}
+    }
+    return 0;    
 }
 
 //optional
@@ -291,7 +319,7 @@ int p6fs_open(const char *path, struct fuse_file_info *fileInfo)
      */
     
     fileInfo->fh = (uint64_t)fi;
-
+    return 0;
 }
 
 int p6fs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fileInfo)
@@ -320,6 +348,26 @@ int p6fs_release(const char *path, struct fuse_file_info *fileInfo)
 int p6fs_getattr(const char *path, struct stat *statbuf)
 {
     /*stat() file or directory */
+
+    memset(statbuf, 0, sizeof(struct stat));
+    
+    int inode_num = pathref(path);
+    if(inode_num == -ENOENT)
+	return -ENOENT;
+    else{
+	struct inode_t inode;
+	getinode(&inode, inode_num);
+	if(inode.mode == DIR_T){
+	    statbuf->st_mode = S_IFDIR | 755;
+	    statbuf->st_nlink = inode.nlinks;
+	}
+	else{
+	    statbuf->st_mode = S_IFREG | 0444;
+	    statbuf->st_nlink = 1;
+	    statbuf->st_size = inode.size;
+	}
+    }
+    return 0;
 }
 /*
 int p6fs_utime(const char *path, struct utimbuf *ubuf);//optional
@@ -364,8 +412,7 @@ static int p6_mount(struct superblock_t *sb){
     // each block stores 64 entries;
     rootdir.fi = (struct file_inode*)malloc(rootdir.dir_size);  // will not be freed
     struct inode_t dirinode;
-    device_read_sector(buffer, INODE_BASE + ROOT_INODE);
-    memcpy(&dirinode, buffer, sizeof(struct inode_t));
+    getinode(&dirinode, ROOT_INODE);
     readdirfile(rootdir.fi, rootdir.dir_size, dirinode.direct_pointer, dirinode.one_level_pointer);
 
     // read superblock
@@ -415,7 +462,7 @@ static int p6_mkfs(struct superblock_t *sb){
 
     // Now we may deal with the bitmaps
     // inode bitmap
-    // this is initializing stage, so of one inode is used: root
+    // this is initializing stage, so of one inode is used: rootdir
     inode_bitmap[0] |= group[GI1];
 
     // data block bimap

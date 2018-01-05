@@ -31,4 +31,5 @@ example: $(HELLO)
 clean:
 	-rm -f *.o $(EXE)
 	-rm hello
+	-rm example/hello.o
 

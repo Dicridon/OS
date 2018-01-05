@@ -9,20 +9,20 @@ static struct fuse_operations p6fs_ops = {
     //  uncomment and fillup the interfaces you implemented in "common.h"
     
      //task1 interfaces
-//     .mkdir = p6fs_mkdir,
-//     .rmdir = p6fs_rmdir,
-//     .readdir = p6fs_readdir,
-//    
-//     .mknod = ,
-//     .symlink = ,
-//     .link = ,
-//     .unlink = ,
-//     .open = ,
-//     .release = ,
-//     .read = ,
-//     .write = ,
-//     .truncate = ,
-//     .getattr = ,
+     .mkdir = p6fs_mkdir,
+     .rmdir = p6fs_rmdir,
+     .readdir = p6fs_readdir,
+    
+     .mknod = p6fs_mknod,
+     .symlink = p6fs_symlink,
+     .link = p6fs_link,
+     .unlink = p6fs_unlink,
+     .open = p6fs_open,
+     .release = p6fs_release,
+     .read = p6fs_read,
+     .write = p6fs_write,
+     .truncate = p6fs_truncate,
+     .getattr = p6fs_getattr,
 //     
 //     .rename = ,
 //     .statfs = ,
