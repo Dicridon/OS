@@ -1,5 +1,15 @@
 #include "common.h"
-static const unsigned char group_index[GROUP_SIZE] = {
+
+#define GI1 (0)
+#define GI2 (1)
+#define GI3 (2)
+#define GI4 (3)
+#define GI5 (4)
+#define GI6 (5)
+#define GI7 (6)
+#define GI8 (7)
+
+static const unsigned char group[GROUP_SIZE] = {
      0x80,
      0x40,
      0x20,
@@ -82,36 +92,141 @@ static const unsigned char group_index[GROUP_SIZE] = {
   |             |
   8257
 
-  |  root  |  root  |  root  |  root  |       |        |
-  | dblock | dblock | dblock | dblock | ..... | dblock |
-  |        |        |        |        |       |        |
+  |  root  |  root  |  root  |  root  |  root  |        |        |
+  | dblock | dblock | dblock | dblock | dblock | ...... | dblock |
+  |        |        |        |        |        |        |        |
   8258    8259      8260     8261     8262
 
  **************************************************************************
  **************************************************************************/
 
 
-
-
-struct inode inode_table[INODE_NUM];          // 8192 blocks in total
+struct inode_t inode_table[INODE_NUM];          // 8192 blocks in total
 unsigned char inode_bitmap[GROUP_NUM];        // 32 blocks in total
 unsigned char dblock_bitmap[GROUP_NUM];       // 32 blocks in total
 struct dentry rootdir;
+struct dentry workdir;
 struct superblock_t glo_superblock;
 struct file_info fd_table[MAX_OPEN_FILE] ;
 
 
-static void pathref(const char* path){
-    char* innerpath = path;
+static void readdirfile(struct file_inode* fip, unsigned int dirsize, unsigned int* base, unsigned int ref){
+    unsigned int blocks = dirsize / SECTOR_SIZE;
+    blocks += (blocks % SECTOR_SIZE == 0);
+    unsigned char buffer[SECTOR_SIZE];
+
+    unsigned int limit = (blocks <= 4) ? blocks : 4;
+    
+    for(unsigned int i = 0; i < limit; i++){
+	device_read_sector(buffer, base[i]);
+	memcpy((char*)fip+i*SECTOR_SIZE, buffer, (dirsize > SECTOR_SIZE) ? SECTOR_SIZE : dirsize);
+	dirsize -= SECTOR_SIZE;
+    }
+    if(blocks <= 4)
+	return;
+
+    // read the blocks in reference blocks
+    unsigned int preblock = blocks;
+    blocks -= 4;
+    unsigned int references[SECTOR_SIZE/4];
+    device_read_sector(buffer, ref);
+    memcpy(references, buffer, SECTOR_SIZE);
+
+
+    limit = (blocks <= 4) ? blocks : 4;
+    
+    for(unsigned int i = 0; i < limit; i++){
+	device_read_sector(buffer, references[i]);
+	memcpy((char*)fip+(i+preblock)*SECTOR_SIZE,
+	       buffer,
+	       (dirsize > SECTOR_SIZE) ? SECTOR_SIZE : dirsize);
+	dirsize -= SECTOR_SIZE;
+    }
+}
+
+
+static void getinode(struct inode_t *inode, unsigned int inode_num){
+    unsigned char buffer[SECTOR_SIZE];
+    device_read_sector(buffer, inode_num/128 + INODE_BASE);
+    unsigned int offset = (inode_num % 128) * sizeof(struct inode_t);
+    memcpy(inode, buffer+offset, sizeof(struct inode_t));
+}
+
+static void nullptrcheck(void* p){
+    if(p == NULL){
+	printf("NULL POINTRE %s, %d", __FILE__, __LINE__);
+	exit(-1);
+    }
+}
+
+static unsigned int pathref(const char* path){
+    char* innerpath = (char*)malloc(strlen(path) * sizeof(char));
+    nullptrcheck(innerpath);
+    const struct dentry *currdir;
+    strcpy(innerpath, path);
     char* token;
     token = strtok(innerpath, "/");
+    unsigned token_num = 0;
+    while(token){
+	token_num++;
+	token = strtok(NULL, "/");
+    }
+    free(innerpath);
+    innerpath = (char*)malloc(strlen(path) * sizeof(char));
+    nullptrcheck(innerpath);
+
+    unsigned int items;
+    unsigned int i;
+//    unsigned char buffer[SECTOR_SIZE];
+    unsigned inode_num;
+    struct dentry tempdir;
+    struct inode_t tempinode;
+    tempdir.fi = (struct file_inode*)malloc(1028*128*sizeof(struct file_inode));
+    nullptrcheck(tempdir.fi);
+    int find = 0;
+
+    strcpy(innerpath, path);
+    token = strtok(innerpath, "/");
+    if(*path == '/'){
+	currdir = &rootdir;
+	while(token != NULL){
+	    items = currdir->dir_size / sizeof(struct file_inode);
+	    for(i = 0; i < items; i++){
+		if(strcmp(currdir->fi[i].file_name, token) == 0){
+		    inode_num = currdir->fi[i].ino;
+		    find = 1;
+		    break;
+		}
+	    }
+	    if(find == 0)
+		return ENOENT;
+	    getinode(&tempinode, inode_num);
+	    if((tempinode.mode == FILE_T || tempinode.mode == SYMLINK_T) && token_num == 1){
+		return inode_num;
+	    }
+	    else if((tempinode.mode == FILE_T || tempinode.mode == SYMLINK_T) && token_num != 1){
+		printf("Not a directory: %s", path);
+		return ENOENT;
+	    }
+
+	    tempdir.dir_size = tempinode.size;
+	    tempdir.ino = inode_num;
+	    readdirfile(tempdir.fi,
+			tempdir.dir_size,
+			tempinode.direct_pointer,
+			tempinode.one_level_pointer);
+	    currdir = &tempdir;
+	    token = strtok(NULL, "/");
+	    token_num--;
+	}
+    }
 }
 
 
 int p6fs_mkdir(const char *path, mode_t mode)
 {
      /*do path parse here
-      create dentry  and update your index*/
+      create dentry and update your index*/
     
 }
 
@@ -223,41 +338,19 @@ int p6fs_statfs(const char *path, struct statvfs *statInfo)
 }
 
 
-static void readdirfile(struct file_inode* fip, unsigned int dirsize, unsigned int base, unsigned int ref){
-    unsigned int blocks = dirsize / SECTOR_SIZE;
-    blocks += (blocks % SECTOR_SIZE == 0);
-    unsigned char buffer[SECTOR_SIZE];
-
-    for(unsigned int i = 0; i < (blocks <= 4) ? blocks : 4; i++){
-	device_read_sector(buffer, base + 1);
-	memcpy((char*)fip+i*SECTOR_SIZE, buffer, (dirsize > SECTOR_SIZE) ? SECTOR_SIZE : dirsize);
-	dirsize -= SECTOR_SIZE;
-    }
-    if(blocks <= 4)
-	return;
 
 
-    // read the blocks in reference blocks
-    blocks -= 4;
-    unsigned int references[SECTOR_SIZE/4];
-    device_read_sector(buffer, ref);
-    memcpy(references, buffer, SECTOR_SIZE);
-    
-    for(unsigned int i = 0; i < (blocks <= 4) ? blocks : 4; i++){
-	device_read_sector(buffer, references[i]);
-	memcpy(fip, buffer, (dirsize > SECTOR_SIZE) ? SECTOR_SIZE : dirsize);
-	dirsize -= SECTOR_SIZE;
-    }
-}
 
-
-static int mount(struct superblock_t *sb){
+static int p6_mount(struct superblock_t *sb){
     // read superblock, two bitmap, inodes
     // initialize fd table
     // read root directory
-
     unsigned char buffer[SECTOR_SIZE];
+    device_read_sector(buffer, SUPERBLOCK);
     memcpy(sb, buffer, sizeof(struct superblock_t));
+
+
+    // initialize file descriptor table
     for(int i = 0; i < MAX_OPEN_FILE; i++){
 	fd_table[i].fd = i;
 	fd_table[i].flag = 0;
@@ -269,12 +362,15 @@ static int mount(struct superblock_t *sb){
 
     // read the whole directory in memory;
     // each block stores 64 entries;
-    rootdir.fi = (struct file_inode*)malloc(rootdir.dir_size);
-    readdirfile(rootdir.fi, rootdir.dir_size, ROOT_DIR, ROOT_DIR+4);
+    rootdir.fi = (struct file_inode*)malloc(rootdir.dir_size);  // will not be freed
+    struct inode_t dirinode;
+    device_read_sector(buffer, INODE_BASE + ROOT_INODE);
+    memcpy(&dirinode, buffer, sizeof(struct inode_t));
+    readdirfile(rootdir.fi, rootdir.dir_size, dirinode.direct_pointer, dirinode.one_level_pointer);
 
     // read superblock
-    device_read_sector(buffer, SUPERBLOCK);
-    memcpy(sb, buffer, sizeof(struct superblock_t));
+    // device_read_sector(buffer, SUPERBLOCK);
+    // memcpy(sb, buffer, sizeof(struct superblock_t));
 
     // read inode bitmap
     unsigned int i;
@@ -293,7 +389,7 @@ static int mount(struct superblock_t *sb){
     }
 }
 
-static int mkfs(struct superblock_t *sb){
+static int p6_mkfs(struct superblock_t *sb){
     // initialize in-memeory super block
     // make space for two bitmaps and inodes
     // write it to disk using device_write_sector
@@ -309,14 +405,21 @@ static int mkfs(struct superblock_t *sb){
     sb->dblock_bitmap_base = DBLOCK_BITMAP_BASE;           // 33   
 
     // initialize root directory
-    inode_table[ROOT_INODE].inode->mode = DIR_T;
-    inode_table[ROOT_INODE].inode->nlinks = 1;
-    inode_table[ROOT_INODE].inode->size = 0;
+    inode_table[ROOT_INODE].mode = DIR_T;
+    inode_table[ROOT_INODE].nlinks = 1;
+    inode_table[ROOT_INODE].size = sb->root_dir_size;
     for(int i = 0; i < 4; i++){
-	inode_table[ROOT_INODE].inode->direct_pointer[i] = i + ROOT_DIR;
+	inode_table[ROOT_INODE].direct_pointer[i] = i + ROOT_DIR;
     }
-    inode_table[ROOT_INODE].inode->one_level_pointer = -1;
+    inode_table[ROOT_INODE].one_level_pointer = 4 + ROOT_DIR;
 
+    // Now we may deal with the bitmaps
+    // inode bitmap
+    // this is initializing stage, so of one inode is used: root
+    inode_bitmap[0] |= group[GI1];
+
+    // data block bimap
+    dblock_bitmap[0] |= ~(char)0x07;     // former 5 blocks are reserved for root dir
 
     // write superblock
     device_write_sector((unsigned char*)sb, SUPERBLOCK);  
@@ -340,6 +443,13 @@ static int mkfs(struct superblock_t *sb){
 
     // write spare superblock
     device_write_sector((unsigned char*)sb, SPSUPERBLOCK);
+
+    // write directory entry . and .. to rootdir
+    struct file_inode entries[2] = {
+	{.file_name = ".", .ino = 0},
+	{.file_name = "..", .ino = 0},
+    };
+    device_write_sector((unsigned char*)entries, ROOT_DIR);
     device_flush();
 }
 
@@ -360,8 +470,12 @@ void* p6fs_init(struct fuse_conn_info *conn)
      */
     struct superblock_t ssp;
     unsigned char buffer[SECTOR_SIZE];
+    char *diskpath = "/home/frostfall/Desktop/OSLabFile/Github/P6/Project6-File-System/project6-start-code/DISK";
+    if(device_open(diskpath) != 0){
+	printf("Invalid disk\n");
+	exit(-1);
+    }
 
-    device_open("DISK");
     device_read_sector(buffer, SUPERBLOCK);
     memcpy(&glo_superblock, buffer, sizeof(struct superblock_t));
 
@@ -369,7 +483,7 @@ void* p6fs_init(struct fuse_conn_info *conn)
     memcpy(&ssp, buffer, sizeof(struct superblock_t));
     if(glo_superblock.magic != 1){
 	if(ssp.magic != 1)     // superblock and spare superblock are both broken, mkfs
-	    mkfs(&glo_superblock);
+	    p6_mkfs(&glo_superblock);
 	else{                  // recover data from spare superblock
 	    memcpy(buffer, &ssp, sizeof(struct superblock_t));
 	    device_write_sector(buffer, SUPERBLOCK);
@@ -377,7 +491,7 @@ void* p6fs_init(struct fuse_conn_info *conn)
 	}
     }
 
-    mount(&glo_superblock);
+    p6_mount(&glo_superblock);
     /*HOWTO use @return
      struct fuse_context *fuse_con = fuse_get_context();
      fuse_con->private_data = (void *)xxx;
