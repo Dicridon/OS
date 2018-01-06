@@ -124,16 +124,22 @@ pthread_mutex_t inode_lock;
 // so specify directory size dirsize(bytes)
 // pass the direct pointers and one-level pointer to base and ref
 static void readdirfile(struct file_inode* fip, unsigned int dirsize, unsigned int* base, unsigned int ref){
-    int blocks = dirsize / SECTOR_SIZE;
+    unsigned int blocks = dirsize / SECTOR_SIZE;
     blocks += (blocks % SECTOR_SIZE == 0);
     unsigned char buffer[SECTOR_SIZE];
 
-    int limit = (blocks <= 4) ? blocks : 4;
+    unsigned int limit = (blocks <= 4) ? blocks : 4;
     
-    for(int i = 0; i < limit; i++){
-	device_read_sector(buffer, base[i]);
-	memcpy((char*)fip+i*SECTOR_SIZE, buffer, (dirsize > SECTOR_SIZE) ? SECTOR_SIZE : dirsize);
-	dirsize -= SECTOR_SIZE;
+    for(unsigned int i = 0, j = 0; i < limit && j < limit;){
+	if(base[j] != 0xffffffff){
+	    device_read_sector(buffer, base[i]);
+	    memcpy((char*)fip+i*SECTOR_SIZE,
+		   buffer,
+		   (dirsize > SECTOR_SIZE) ? SECTOR_SIZE : dirsize);
+	    dirsize -= SECTOR_SIZE;
+	    i++;
+	}
+	j++;
     }
     if(blocks <= 4)
 	return;
@@ -141,34 +147,42 @@ static void readdirfile(struct file_inode* fip, unsigned int dirsize, unsigned i
     // read the blocks in reference blocks
     int preblock = blocks;
     blocks -= 4;
-    int references[SECTOR_SIZE/4];
+    unsigned int references[SECTOR_SIZE/4];
     device_read_sector(buffer, ref);
     memcpy(references, buffer, SECTOR_SIZE);
     
-    for(int i = 0; i < blocks; i++){
-	device_read_sector(buffer, references[i]);
-	memcpy((char*)fip+(i+preblock)*SECTOR_SIZE,
-	       buffer,
-	       (dirsize > SECTOR_SIZE) ? SECTOR_SIZE : dirsize);
-	dirsize -= SECTOR_SIZE;
+    for(unsigned int i = 0, j = 0; i < blocks && j < blocks;){
+	if(references[j] != 0xffffffff){
+	    device_read_sector(buffer, references[i]);
+	    memcpy((char*)fip+(i+preblock)*SECTOR_SIZE,
+		   buffer,
+		   (dirsize > SECTOR_SIZE) ? SECTOR_SIZE : dirsize);
+	    dirsize -= SECTOR_SIZE;
+	    i++;
+	}
+	j++;
     }
 }
 
 
 // DO allocate enough space for fip
 static void writedirfile(struct file_inode* fip, unsigned int dirsize, unsigned int* base, unsigned int ref){
-    int blocks = dirsize / SECTOR_SIZE;
+    unsigned int blocks = dirsize / SECTOR_SIZE;
     blocks += (blocks % SECTOR_SIZE == 0);
     unsigned char buffer[SECTOR_SIZE];
 
-    int limit = (blocks <= 4) ? blocks : 4;
+    unsigned int limit = (blocks <= 4) ? blocks : 4;
     
-    for(int i = 0; i < limit; i++){
-	memcpy(buffer,
-	       (char*)fip+i*SECTOR_SIZE,
-	       (dirsize > SECTOR_SIZE) ? SECTOR_SIZE : dirsize);
-	device_write_sector(buffer, base[i]);
-	dirsize -= SECTOR_SIZE;
+    for(unsigned int i = 0, j = 0; i < limit && j < limit;){
+	if(base[j] != 0xffffffff){
+	    memcpy(buffer,
+		   (char*)fip+i*SECTOR_SIZE,
+		   (dirsize > SECTOR_SIZE) ? SECTOR_SIZE : dirsize);
+	    device_write_sector(buffer, base[j]);
+	    dirsize -= SECTOR_SIZE;
+	    i++;
+	}
+	j++;
     }
     if(blocks <= 4)
 	return;
@@ -177,19 +191,23 @@ static void writedirfile(struct file_inode* fip, unsigned int dirsize, unsigned 
     int preblock = blocks;
     blocks -= 4;
 
-    int references[SECTOR_SIZE/4];
+    unsigned int references[SECTOR_SIZE/4];
     device_read_sector(buffer, ref);
     memcpy(references, buffer, SECTOR_SIZE);
     
     device_read_sector(buffer, ref);
     memcpy(references, buffer, SECTOR_SIZE);
     
-    for(int i = 0; i < blocks; i++){
-	memcpy(buffer,
-	       (char*)fip+(i+preblock)*SECTOR_SIZE,
-	       (dirsize > SECTOR_SIZE) ? SECTOR_SIZE : dirsize);
-	device_read_sector(buffer, references[i]);
-	dirsize -= SECTOR_SIZE;
+    for(unsigned int i = 0, j = 0; i < blocks && j < blocks;){
+	if(references[j] == 0xffffffff){
+	    memcpy(buffer,
+		   (char*)fip+(i+preblock)*SECTOR_SIZE,
+		   (dirsize > SECTOR_SIZE) ? SECTOR_SIZE : dirsize);
+	    device_read_sector(buffer, references[j]);
+	    dirsize -= SECTOR_SIZE;
+	    i++;
+	}
+	j++;
     }
     device_flush();
 }
@@ -308,7 +326,7 @@ static int update_metadata(int root){
     update_dblock_bitmap();
     update_inode_bitmap();
     update_inodes();
-    if(root == 2){
+    if(root == 1){
 	update_rootdir();
 	glo_superblock.root_dir_size = rootdir.dir_size;
 	update_superblock();
@@ -322,7 +340,7 @@ static int allocate_and_create_dir(struct inode_t *parent_inode, int parent_inod
     int pindex;
     for(pindex = 0; pindex < items; pindex++){
 	if(strcmp(filename, fip[pindex].file_name) == 0)
-	    return -ENOENT;
+	    return -ENOENT;      // directory already exsits
     }
 
     // first deal with new inode
@@ -344,8 +362,6 @@ static int allocate_and_create_dir(struct inode_t *parent_inode, int parent_inod
     inode_table[empty_inode_num].size = 2 * sizeof(struct file_inode);    
     inode_table[empty_inode_num].direct_pointer[0] = slot + DBLOCK_BASE;
     inode_table[empty_inode_num].one_level_pointer = 0xffffffff;
-
-
 
     // update parent directory
     strcpy(fip[pindex].file_name, filename);
@@ -429,7 +445,7 @@ static int pathref(const char* path, int parent){
 	    break;
 	}
 	// return parent dirctory
-	else if(find == 0 && parent){
+	else if(parent){
 	    if(token_num == 1){
 		inode_num = currdir->ino;
 		break;
@@ -475,6 +491,82 @@ static void getfilename(const char* path, char* filename){
 }
 
 
+static int remove_entry(struct inode_t *parent_inode, int parent_inode_num, const char* filename){
+    struct file_inode *fip = (struct file_inode*)malloc(parent_inode->size);
+
+    if(fip == NULL)
+	return -ENOMEM;
+    memset(fip, 0, parent_inode->size);
+    // TODO return -ENOBUF in readdir
+    readdirfile(fip, parent_inode->size,
+		parent_inode->direct_pointer, parent_inode->one_level_pointer);
+
+    int items = parent_inode->size / sizeof(struct file_inode);
+    int find = 0;
+    int child_inode_num;
+    int i;
+    for(i = 0; i < items; i++){
+	if(strcmp(fip[i].file_name, filename) == 0){
+	    child_inode_num = fip[i].ino;
+	    find = 1;
+	    break;
+	}
+    }
+
+    if(!find){
+	free(fip);
+	fip = NULL;
+	return -ENOENT;
+    }
+
+  // at first I wanted to find the block this entry is in and then remove this entry from it
+  // but I reallized that if I did so, readdirfile may not will correctly if an entry is removed
+  // because then dirsize in it might be negative, which could be a catastrophe
+  // So now a just shrink the fip array and write it back to the directory blocks sequently
+  // the last block will be restored if the size of the parent directory is multiple of 4096
+    int j = i;
+    if(j == items-1){
+	*fip[j].file_name = '\0';
+	fip[j].ino = -1;
+    }
+	
+    for(j = i; j < items-1; j++){
+	strcpy(fip[j].file_name, fip[j+1].file_name);
+	fip[j].ino = fip[j+1].ino;
+    }
+    parent_inode->size -= sizeof(struct file_inode);
+    inode_table[parent_inode_num].size -= sizeof(struct file_inode);
+
+  // restore blocok
+    if(inode_table[parent_inode_num].size % SECTOR_SIZE == 0){
+	int blocks = parent_inode->size / SECTOR_SIZE;
+	if(blocks < 4){
+	    clear_bitmap_bit(inode_table[parent_inode_num].direct_pointer[blocks], dblock_bitmap);
+	    inode_table[parent_inode_num].direct_pointer[blocks] = 0xffffffff;
+	}
+	else if(blocks == 4){
+	    clear_bitmap_bit(inode_table[parent_inode_num].one_level_pointer, dblock_bitmap);
+	    inode_table[parent_inode_num].one_level_pointer = 0xffffffff;
+	}
+	else{
+	    unsigned int buffer[SECTOR_SIZE/4];
+	    device_read_sector((unsigned char*)buffer, parent_inode->one_level_pointer);
+	    clear_bitmap_bit(buffer[blocks-4], dblock_bitmap);
+	    buffer[blocks-4] = 0xffffffff;
+	    device_write_sector((unsigned char*)buffer, parent_inode->one_level_pointer);
+	    device_flush();
+	}
+    }
+    writedirfile(fip,
+		 inode_table[parent_inode_num].size,
+		 inode_table[parent_inode_num].direct_pointer,
+		 inode_table[parent_inode_num].one_level_pointer);
+    device_flush();
+    free(fip);
+    fip = NULL;
+    return 0;
+}
+
 int p6fs_mkdir(const char *path, mode_t mode)
 {
      /*do path parse here
@@ -494,6 +586,8 @@ int p6fs_mkdir(const char *path, mode_t mode)
     struct file_inode new_dir;
     // one extro file_inode
     fip = (struct file_inode*)malloc(parent_inode.size+(sizeof(struct file_inode)));
+    if(!fip)
+	return -ENOMEM;
     readdirfile(fip,
 		parent_inode.size,
 		parent_inode.direct_pointer,
@@ -511,7 +605,9 @@ int p6fs_mkdir(const char *path, mode_t mode)
     pthread_mutex_lock(&inode_lock);
 
     if(allocate_and_create_dir(&parent_inode, parent_inode_num, fip, new_dir.file_name) == -1){
-	free(fip);	
+	free(fip);
+	pthread_mutex_unlock(&bitmap_lock);
+	pthread_mutex_unlock(&inode_lock);
 	return -ENOENT;	
     }
 
@@ -528,7 +624,46 @@ int p6fs_mkdir(const char *path, mode_t mode)
 
 int p6fs_rmdir(const char *path)
 {
+    /*
+      - path parse->find the parent directory: root diretory can not be removed
+      - get filename
+      - remove entry of this file from parent directory
+      - . and .. can not be removed, non-empty directory (size is 128) can not be removed
+      - restore datablocks and inode of removed directory
+      - update inode_bitmap and dblock_bimap
+      - if the deleted entry is exactly the last entry of one block, restore this block
+        set corresponding pointer to 0xffffffff(so I will not skip blocks)
+     */
+    int parent_inode_num, child_inode_num;
+    struct inode_t parent_inode, child_inode;
+
+    char filename[60];
+    parent_inode_num = pathref(path, PARENT);
+    child_inode_num = pathref(path, CHILD);
+    if(parent_inode_num == -ENOENT || child_inode_num == -ENOENT)
+	return -ENOENT;
+
+    getinode(&parent_inode, parent_inode_num);
+    getinode(&child_inode, child_inode_num);
+    getfilename(path, filename);
+    if(*filename == '\0')
+	return -ENOENT;
     
+    if(strcmp(filename, ".") == 0 || strcmp(filename, "..") == 0 || child_inode.size > 128)
+	return -ENOTEMPTY;
+
+    pthread_mutex_lock(&bitmap_lock);
+    pthread_mutex_lock(&inode_lock);
+    remove_entry(&parent_inode, parent_inode_num, filename);
+    // now entry is removed, dblock bitmap is settled, restore inode
+    clear_bitmap_bit(child_inode_num, inode_bitmap);
+
+    // TODO restore dblock_bitmap bits
+    update_metadata(parent_inode_num == ROOT_INODE);
+
+    pthread_mutex_unlock(&bitmap_lock);
+    pthread_mutex_unlock(&inode_lock);
+    return 0;
 }
 
 int p6fs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fileInfo)
@@ -542,6 +677,8 @@ int p6fs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offs
     getinode(&inode, inode_num);
     
     files = (struct file_inode*)malloc(inode.size);
+    if(!files)
+	return -ENOMEM;
     readdirfile(files, inode.size, inode.direct_pointer, inode.one_level_pointer);
 
     if(inode.mode != DIR_T)
