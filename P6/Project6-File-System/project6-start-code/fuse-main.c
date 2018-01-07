@@ -23,16 +23,16 @@ static struct fuse_operations p6fs_ops = {
      .write = p6fs_write,
      .truncate = p6fs_truncate,
      .getattr = p6fs_getattr,
-//     
-//     .rename = ,
-//     .statfs = ,
+     
+     .rename = p6fs_rename,
+     .statfs = p6fs_statfs,
      .init = p6fs_init,
      
      //task2 bonus interfaces
-//     .utime = ,
-//     .readlink = ,
-//     .chmod = ,
-//     .destroy = ,
+     .utime = p6fs_utime,
+//     .readlink = p6fs_read,
+//     .chmod = p6fs_chmod,
+     .destroy = p6fs_destroy,
      
      //optional interfaces
 //     .opendir = ,
