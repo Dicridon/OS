@@ -369,18 +369,18 @@ static int allocate_and_create_entry(int parent_inode_num, struct file_inode *fi
     int pindex;
     for(pindex = 0; pindex < items; pindex++){
 	if(strcmp(filename, fip[pindex].file_name) == 0)
-	    return -ENOENT;      // directory already exsits
+	    return -EEXIST;      // directory or file already exsits
     }
 
     // first deal with new inode
     int empty_inode_num = bitmap_lookup(inode_bitmap);
     if(empty_inode_num == -1)
-	return -ENOENT;
+	return -ENOMEM;
 
     int slot;
     slot = bitmap_lookup(dblock_bitmap);
     if(slot == -1)
-	return -ENOENT;
+	return -ENOMEM;
 
     for(int i = 0; i < 4; i++)
 	inode_table[empty_inode_num].direct_pointer[i] = 0xffffffff;
@@ -412,6 +412,7 @@ static int allocate_and_create_entry(int parent_inode_num, struct file_inode *fi
 		     inode_table[empty_inode_num].direct_pointer,
 		     inode_table[empty_inode_num].one_level_pointer);
     }
+    device_flush();
     return 0;
 }
 
@@ -423,7 +424,7 @@ static int create_entry(struct inode_t *parent_inode, int parent_inode_num, stru
     int pindex;
     for(pindex = 0; pindex < items; pindex++){
 	if(strcmp(filename, fip[pindex].file_name) == 0)
-	    return -ENOENT;      // directory already exsits
+	    return -EEXIST;      // directory or file already exsits
     }
 
     // update parent directory
@@ -437,6 +438,7 @@ static int create_entry(struct inode_t *parent_inode, int parent_inode_num, stru
 
     // update inode_table
     inode_table[parent_inode_num].size = parent_inode->size;
+    device_flush();
     return 0;
 }
 
@@ -542,12 +544,53 @@ static void getfilename(const char* path, char* filename){
     strcpy(filename, name);
 }
 
+static int remove_entry(struct inode_t *parent_inode, int parent_inode_num, const char* filename){
+        struct file_inode *fip = (struct file_inode*)malloc(parent_inode->size);
+    if(fip == NULL)
+	return -ENOMEM;
+    memset(fip, 0, parent_inode->size);
+    // TODO return -ENOBUF in readdir
+    readdirfile(fip, parent_inode->size,
+		parent_inode->direct_pointer, parent_inode->one_level_pointer);
+
+    int items = parent_inode->size / sizeof(struct file_inode);
+    int find = 0;
+    int child_inode_num;
+    int i;
+    for(i = 0; i < items; i++){
+	if(strcmp(fip[i].file_name, filename) == 0){
+	    child_inode_num = fip[i].ino;
+	    find = 1;
+	    break;
+	}
+    }
+
+    if(!find){
+	free(fip);
+	fip = NULL;
+	return -ENOENT;
+    }
+
+    int j = i;
+    if(j == items-1){
+	*fip[j].file_name = '\0';
+	fip[j].ino = -1;
+    }
+	
+    for(j = i; j < items-1; j++){
+	strcpy(fip[j].file_name, fip[j+1].file_name);
+	fip[j].ino = fip[j+1].ino;
+    }
+    inode_table[parent_inode_num].size -= sizeof(struct file_inode);
+    return 0;
+}
+
 // at first I wanted to find the block this entry is in and then remove this entry from it
 // but I reallized that if I did so, readdirfile may not will correctly if an entry is removed
 // because then dirsize in it might be negative, which could be a catastrophe
 // So now a just shrink the fip array and write it back to the directory blocks sequently
 // the last block will be restored if the size of the parent directory is multiple of 4096
-static int remove_entry(struct inode_t *parent_inode, int parent_inode_num, const char* filename){
+static int remove_entry_and_restore(struct inode_t *parent_inode, int parent_inode_num, const char* filename){
     struct file_inode *fip = (struct file_inode*)malloc(parent_inode->size);
     if(fip == NULL)
 	return -ENOMEM;
@@ -804,7 +847,6 @@ int p6fs_mknod(const char *path, mode_t mode, dev_t dev)
     pthread_mutex_unlock(&bitmap_lock);
     pthread_mutex_unlock(&inode_lock);
     return 0;
-    
 }
 
 //int p6fs_readlink(const char *path, char *link, size_t size)
@@ -816,7 +858,49 @@ int p6fs_symlink(const char *path, const char *link)
 
 int p6fs_link(const char *path, const char *newpath)
 {
+    char new_filename[FILENAME_MAX];
+    char old_filename[FILENAME_MAX];
+    getfilename(newpath, new_filename);
+    getfilename(path, old_filename);
+
+    int old_parent_inode_num = pathref(path, PARENT);
+    int new_parent_inode_num = pathref(newpath, PARENT);
+    if(old_parent_inode_num == new_parent_inode_num && (strcmp(new_filename, old_filename) == 0))
+	return -EEXIST;
     
+    struct inode_t new_parent_inode;
+    int child_inode_num = pathref(path, CHILD);
+    getinode(&new_parent_inode, new_parent_inode_num);
+
+    struct file_inode *fip;
+    fip = (struct file_inode*)malloc(new_parent_inode.size + sizeof(struct file_inode));
+    if(fip == NULL){
+	return -ENOMEM;
+    }
+
+    readdirfile(fip,
+		new_parent_inode.size,
+		new_parent_inode.direct_pointer,
+		new_parent_inode.one_level_pointer);
+    
+    pthread_mutex_lock(&bitmap_lock);
+    pthread_mutex_lock(&inode_lock);
+    
+    if(new_parent_inode.size % SECTOR_SIZE == 0)
+	if(extend_dir(new_parent_inode_num))
+	    return -ENOMEM;
+    if(create_entry(&new_parent_inode, new_parent_inode_num, fip, new_filename, child_inode_num) != 0){
+	free(fip);
+	return -EEXIST;	
+    }
+
+
+    inode_table[child_inode_num].nlinks++;
+    update_metadata(new_parent_inode_num == ROOT_INODE);
+    device_flush();
+    pthread_mutex_unlock(&bitmap_lock);
+    pthread_mutex_unlock(&inode_lock);
+    return 0;
 }
 
 static void restore_file_dblocks(struct inode_t *inode){
@@ -851,34 +935,33 @@ int p6fs_unlink(const char *path)
 	return -ENOENT;
 
     int parent_inode_num;
+    struct inode_t parent_inode;
     parent_inode_num = pathref(path, PARENT);
     if(parent_inode_num == -ENOENT)
 	return -ENOENT;
     
+    getinode(&parent_inode, parent_inode_num);    
     struct inode_t child_inode;
     getinode(&child_inode, child_inode_num);
-
-    if(child_inode.mode == DIR_T)
-	return -ENOTDIR;
-    else if(child_inode.mode == SYMLINK_T)
-	return -ENOLINK;
-    else if(--inode_table[child_inode_num].nlinks > 0){
-	update_metadata(parent_inode_num == ROOT_INODE);
-	return 0;	
-    }
-
-    // restore blocks and remove entry in parent directory
-    struct inode_t parent_inode;
-    getinode(&parent_inode, parent_inode_num);
 
     char filename[60];
     getfilename(path, filename);
 
+    int status;
+    if(child_inode.mode == DIR_T)
+	return -ENOTDIR;
+    else if(--inode_table[child_inode_num].nlinks > 0){
+	status = remove_entry(&parent_inode, parent_inode_num, filename);
+	update_metadata(parent_inode_num == ROOT_INODE);
+	return status;
+    }
+
+    // restore blocks and remove entry in parent directory
     pthread_mutex_lock(&bitmap_lock);
     pthread_mutex_lock(&inode_lock);
 
     // remove entry in parent directory
-    remove_entry(&parent_inode, parent_inode_num, filename);
+    status = remove_entry_and_restore(&parent_inode, parent_inode_num, filename);
     // resotre inode
     clear_bitmap_bit(child_inode_num, inode_bitmap);
     // resotre data blocks

@@ -159,8 +159,8 @@ void p6fs_destroy(void* private_data);//optional
 // [    ]p6fs_readdir
 // [    ]p6fs_mknod
 // [TODO]p6fs_symlink
-// [TODO]p6fs_link
-// [TODO]p6fs_unlink
+// [    ]p6fs_link
+// [    ]p6fs_unlink
 // [    ]p6fs_open
 // [TODO]p6fs_read
 // [TODO]p6fs_write
