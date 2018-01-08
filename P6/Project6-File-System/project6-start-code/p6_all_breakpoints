@@ -1,0 +1,16 @@
+break p6fs_init
+break p6fs_mkdir
+break p6fs_rmdir
+break p6fs_readdir
+break p6fs_mknod
+break p6fs_symlink
+break p6fs_link
+break p6fs_unlink
+break p6fs_open
+break p6fs_read
+break p6fs_write
+break p6fs_truncate
+break p6fs_release
+break p6fs_getattr
+break p6fs_rename
+break p6fs_statfs

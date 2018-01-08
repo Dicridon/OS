@@ -772,7 +772,7 @@ int p6fs_rmdir(const char *path)
     getinode(&child_inode, child_inode_num);
     getfilename(path, filename);
     if(*filename == '\0')
-	return -ENOENT;
+	return -ENOBUFS;
     
     if(strcmp(filename, ".") == 0 || strcmp(filename, "..") == 0 || child_inode.size > 128)
 	return -ENOTEMPTY;
@@ -886,6 +886,9 @@ int p6fs_symlink(const char *path, const char *link)
     char filename[FILENAME_MAX] = "";
     getfilename(link, filename);
 
+    if(*filename == '\0')
+	return -ENOBUFS;
+    
     struct inode_t parent_inode;
     getinode(&parent_inode, parent_inode_num);
 
@@ -927,6 +930,9 @@ int p6fs_link(const char *path, const char *newpath)
     char old_filename[FILENAME_MAX];
     getfilename(newpath, new_filename);
     getfilename(path, old_filename);
+
+    if(*new_filename == '\0' || *old_filename == '\0' )
+	return -ENOBUFS;
 
 //    int old_parent_inode_num = pathref(path, PARENT);
     int new_parent_inode_num = pathref(newpath, PARENT);
@@ -1003,9 +1009,10 @@ int p6fs_unlink(const char *path)
     struct inode_t child_inode;
     getinode(&child_inode, child_inode_num);
 
-    char filename[60];
+    char filename[FILENAME_MAX];
     getfilename(path, filename);
-
+    if(*filename == '\0')
+	return -ENOBUFS;
     int status;
     if(child_inode.mode == DIR_T)
 	return -ENOTDIR;
@@ -1193,11 +1200,15 @@ int p6fs_rename(const char *path, const char *newpath)
     getinode(&old_parent_inode, old_parent_inode_num);
     getinode(&new_parent_inode, new_parent_inode_num);
 
+
     getfilename(path, child_filename);
     getfilename(newpath, new_child_filename);
-    pthread_mutex_lock(&bitmap_lock);
-    pthread_mutex_lock(&inode_lock);
 
+    if(*new_child_filename == '\0' || *new_child_filename == '\0')
+	return -ENOBUFS;
+    
+    pthread_mutex_lock(&bitmap_lock);
+    pthread_mutex_lock(&inode_lock);    
     int status;
     status = remove_entry(&old_parent_inode, old_parent_inode_num, child_filename);
     if(status != 0){

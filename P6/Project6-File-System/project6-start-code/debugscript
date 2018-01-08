@@ -1,0 +1,6 @@
+#!/bin/zsh
+make clean
+rm DISK -f
+touch DISK
+make
+./p6fs DISK mnt

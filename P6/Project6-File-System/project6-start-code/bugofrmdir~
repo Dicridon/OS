@@ -1,0 +1,5 @@
+rmdir: 
+	parent inode is correct
+	child inode is correct
+	parent inode_num is correct
+	parent inode_num is correct
