@@ -30,8 +30,8 @@ static struct fuse_operations p6fs_ops = {
      
      //task2 bonus interfaces
      .utime = p6fs_utime,
-//     .readlink = p6fs_read,
-//     .chmod = p6fs_chmod,
+     .readlink = p6fs_read,
+     .chmod = p6fs_chmod,
      .destroy = p6fs_destroy,
      
      //optional interfaces

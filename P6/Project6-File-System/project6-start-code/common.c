@@ -91,17 +91,17 @@ static const unsigned char group[GROUP_SIZE] = {
   |        |        |        |        |
   | inodes | inodes | ...... | inodes | 
   |        |        |        |        |
-  65       66       67       8256
+  65       66       67       16448
 
   |             |
   | super block |
   |             |
-  8257
+  16449
 
   |  root  |  root  |  root  |  root  |  root  |        |        |
   | dblock | dblock | dblock | dblock | dblock | ...... | dblock |
   |        |        |        |        |        |        |        |
-  8258    8259      8260     8261     8262
+  16450    16451    16452    16453    16454    16455
 
  **************************************************************************
  **************************************************************************/
@@ -364,7 +364,7 @@ static int extend_dir(int parent_inode_num){
 
 // this function will allocate one inode form the filename, so it should not be used in mknod
 // but it will not extend parent directory
-static int allocate_and_create_entry(int parent_inode_num, struct file_inode *fip, char* filename, node_type type){
+static int allocate_and_create_entry(int parent_inode_num, struct file_inode *fip, char* filename, node_type type, const char* link_to){
     int items = inode_table[parent_inode_num].size / sizeof(struct file_inode);
     int pindex;
     for(pindex = 0; pindex < items; pindex++){
@@ -391,6 +391,10 @@ static int allocate_and_create_entry(int parent_inode_num, struct file_inode *fi
     inode_table[empty_inode_num].size = (type == DIR_T) ? 2 * sizeof(struct file_inode) : 0;    
     inode_table[empty_inode_num].direct_pointer[0] = slot + DBLOCK_BASE;
     inode_table[empty_inode_num].one_level_pointer = 0xffffffff;
+    inode_table[empty_inode_num].create_time = time(NULL);
+    inode_table[empty_inode_num].last_access_time = inode_table[empty_inode_num].create_time;
+    inode_table[empty_inode_num].last_modified_time = inode_table[empty_inode_num].last_access_time;
+    inode_table[empty_inode_num].access_mod = (type == DIR_T) ? 0755 : 0644;
 
     // update parent directory
     strcpy(fip[pindex].file_name, filename);
@@ -400,7 +404,9 @@ static int allocate_and_create_entry(int parent_inode_num, struct file_inode *fi
 		 inode_table[parent_inode_num].size,
 		 inode_table[parent_inode_num].direct_pointer,
 		 inode_table[parent_inode_num].one_level_pointer);
-
+    inode_table[parent_inode_num].last_access_time = inode_table[empty_inode_num].last_access_time;
+    inode_table[parent_inode_num].last_modified_time = inode_table[empty_inode_num].last_access_time;
+    
     // write child directory
     if(type == DIR_T){
 	struct file_inode new_fip[2] =  {
@@ -412,6 +418,13 @@ static int allocate_and_create_entry(int parent_inode_num, struct file_inode *fi
 		     inode_table[empty_inode_num].direct_pointer,
 		     inode_table[empty_inode_num].one_level_pointer);
     }
+    else if(type == SYMLINK_T){
+	unsigned char buffer[SECTOR_SIZE];
+	if(strlen(link_to) >= SECTOR_SIZE)
+	    return -ENOBUFS;
+	memcpy(buffer, link_to, strlen(link_to));
+	device_write_sector(buffer, inode_table[empty_inode_num].direct_pointer[0]);
+    }
     device_flush();
     return 0;
 }
@@ -419,14 +432,24 @@ static int allocate_and_create_entry(int parent_inode_num, struct file_inode *fi
 
 // notice this function is only used to add an entry to a directory setting ino to inode_num
 // so call this function to add an entry in p6fs_link
-static int create_entry(struct inode_t *parent_inode, int parent_inode_num, struct file_inode *fip, char* filename, int inode_num){
+static int create_entry(struct inode_t *parent_inode, int parent_inode_num, char* filename, int inode_num){
+    struct file_inode *fip;
+    parent_inode->size = inode_table[parent_inode_num].size;
+    fip = (struct file_inode*)malloc(parent_inode->size + sizeof(struct file_inode));
+    if(fip == NULL){
+	return -ENOMEM;
+    }
+
+    readdirfile(fip, parent_inode->size,
+		parent_inode->direct_pointer,
+		parent_inode->one_level_pointer);
+
     int items = parent_inode->size / sizeof(struct file_inode);
     int pindex;
     for(pindex = 0; pindex < items; pindex++){
 	if(strcmp(filename, fip[pindex].file_name) == 0)
 	    return -EEXIST;      // directory or file already exsits
     }
-
     // update parent directory
     strcpy(fip[pindex].file_name, filename);
     fip[pindex].ino = inode_num;
@@ -545,11 +568,10 @@ static void getfilename(const char* path, char* filename){
 }
 
 static int remove_entry(struct inode_t *parent_inode, int parent_inode_num, const char* filename){
-        struct file_inode *fip = (struct file_inode*)malloc(parent_inode->size);
+    struct file_inode *fip = (struct file_inode*)malloc(parent_inode->size);
     if(fip == NULL)
 	return -ENOMEM;
     memset(fip, 0, parent_inode->size);
-    // TODO return -ENOBUF in readdir
     readdirfile(fip, parent_inode->size,
 		parent_inode->direct_pointer, parent_inode->one_level_pointer);
 
@@ -573,7 +595,7 @@ static int remove_entry(struct inode_t *parent_inode, int parent_inode_num, cons
 
     int j = i;
     if(j == items-1){
-	*fip[j].file_name = '\0';
+	memset(fip[j].file_name, 0, strlen(fip[j].file_name));
 	fip[j].ino = -1;
     }
 	
@@ -582,6 +604,12 @@ static int remove_entry(struct inode_t *parent_inode, int parent_inode_num, cons
 	fip[j].ino = fip[j+1].ino;
     }
     inode_table[parent_inode_num].size -= sizeof(struct file_inode);
+    parent_inode->size -= sizeof(struct file_inode);
+    writedirfile(fip,
+		 inode_table[parent_inode_num].size,
+		 inode_table[parent_inode_num].direct_pointer,
+		 inode_table[parent_inode_num].one_level_pointer);
+    device_flush();
     return 0;
 }
 
@@ -701,7 +729,7 @@ int p6fs_mkdir(const char *path, mode_t mode)
     pthread_mutex_lock(&bitmap_lock);
     pthread_mutex_lock(&inode_lock);
 
-    if(allocate_and_create_entry(parent_inode_num, fip, new_dir.file_name, DIR_T) != 0){
+    if(allocate_and_create_entry(parent_inode_num, fip, new_dir.file_name, DIR_T, "") != 0){
 	free(fip);
 	pthread_mutex_unlock(&bitmap_lock);
 	pthread_mutex_unlock(&inode_lock);
@@ -771,7 +799,6 @@ int p6fs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offs
     struct inode_t inode;
 
     getinode(&inode, inode_num);
-    
     files = (struct file_inode*)malloc(inode.size);
     if(!files)
 	return -ENOMEM;
@@ -782,7 +809,7 @@ int p6fs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offs
     else{
 	for(unsigned long i = 0; i < inode.size / sizeof(struct file_inode); i++){
 	    if(filler(buf, files[i].file_name, NULL, 0) == 1)
-		break;
+		return -ENOBUFS;
 	}
     }
     return 0;    
@@ -832,7 +859,7 @@ int p6fs_mknod(const char *path, mode_t mode, dev_t dev)
     pthread_mutex_lock(&bitmap_lock);
     pthread_mutex_lock(&inode_lock);
 
-    if(allocate_and_create_entry(parent_inode_num, fip, new_dir.file_name, FILE_T) == -1){
+    if(allocate_and_create_entry(parent_inode_num, fip, new_dir.file_name, FILE_T, "") != 0){
 	free(fip);
 	pthread_mutex_unlock(&bitmap_lock);
 	pthread_mutex_unlock(&inode_lock);
@@ -849,48 +876,80 @@ int p6fs_mknod(const char *path, mode_t mode, dev_t dev)
     return 0;
 }
 
-//int p6fs_readlink(const char *path, char *link, size_t size)
+//int p6fs_readlink(const char *path, char *link, size_t size);
+    
+
 
 int p6fs_symlink(const char *path, const char *link)
 {
-    
-}
+    int parent_inode_num = pathref(link, PARENT);
+    char filename[FILENAME_MAX] = "";
+    getfilename(link, filename);
 
-int p6fs_link(const char *path, const char *newpath)
-{
-    char new_filename[FILENAME_MAX];
-    char old_filename[FILENAME_MAX];
-    getfilename(newpath, new_filename);
-    getfilename(path, old_filename);
+    struct inode_t parent_inode;
+    getinode(&parent_inode, parent_inode_num);
 
-    int old_parent_inode_num = pathref(path, PARENT);
-    int new_parent_inode_num = pathref(newpath, PARENT);
-    if(old_parent_inode_num == new_parent_inode_num && (strcmp(new_filename, old_filename) == 0))
-	return -EEXIST;
-    
-    struct inode_t new_parent_inode;
-    int child_inode_num = pathref(path, CHILD);
-    getinode(&new_parent_inode, new_parent_inode_num);
 
-    struct file_inode *fip;
-    fip = (struct file_inode*)malloc(new_parent_inode.size + sizeof(struct file_inode));
+    struct file_inode *fip = (struct file_inode*)malloc(sizeof(struct file_inode) + parent_inode.size);
     if(fip == NULL){
 	return -ENOMEM;
     }
 
     readdirfile(fip,
-		new_parent_inode.size,
-		new_parent_inode.direct_pointer,
-		new_parent_inode.one_level_pointer);
+		parent_inode.size,
+		parent_inode.direct_pointer,
+		parent_inode.one_level_pointer);
+    
+    pthread_mutex_lock(&bitmap_lock);
+    pthread_mutex_lock(&inode_lock);
+    if(allocate_and_create_entry(parent_inode_num, fip, filename, SYMLINK_T, path) != 0){
+	pthread_mutex_unlock(&bitmap_lock);
+	pthread_mutex_unlock(&inode_lock);
+	free(fip);
+	return -ENOMEM;
+    }
+
+    update_metadata(parent_inode_num == ROOT_INODE);
+    device_flush();
+    free(fip);
+    pthread_mutex_unlock(&bitmap_lock);
+    pthread_mutex_unlock(&inode_lock);
+    return 0;
+}
+
+int p6fs_link(const char *path, const char *newpath)
+{
+
+    if(strcmp(path, newpath) == 0)
+	return -EEXIST;
+    
+    char new_filename[FILENAME_MAX];
+    char old_filename[FILENAME_MAX];
+    getfilename(newpath, new_filename);
+    getfilename(path, old_filename);
+
+//    int old_parent_inode_num = pathref(path, PARENT);
+    int new_parent_inode_num = pathref(newpath, PARENT);
+//    if(old_parent_inode_num == new_parent_inode_num && (strcmp(new_filename, old_filename) == 0))
+//	return -EEXIST;
+    
+    struct inode_t new_parent_inode;
+    int child_inode_num = pathref(path, CHILD);
+    getinode(&new_parent_inode, new_parent_inode_num);
+
+    if(new_parent_inode_num == -ENOENT || child_inode_num == -ENOENT)
+	return -ENOENT;
+
     
     pthread_mutex_lock(&bitmap_lock);
     pthread_mutex_lock(&inode_lock);
     
     if(new_parent_inode.size % SECTOR_SIZE == 0)
-	if(extend_dir(new_parent_inode_num))
+	if(extend_dir(new_parent_inode_num) == -1)
 	    return -ENOMEM;
-    if(create_entry(&new_parent_inode, new_parent_inode_num, fip, new_filename, child_inode_num) != 0){
-	free(fip);
+    if(create_entry(&new_parent_inode, new_parent_inode_num, new_filename, child_inode_num) != 0){
+	pthread_mutex_unlock(&bitmap_lock);
+	pthread_mutex_unlock(&inode_lock);
 	return -EEXIST;	
     }
 
@@ -1019,7 +1078,7 @@ int p6fs_open(const char *path, struct fuse_file_info *fileInfo)
      fi->xxxx = xxxx;
      }
      */
-    
+    inode_table[inode_num].last_access_time = time(NULL);
     fileInfo->fh = (uint64_t)(fd_table+i);
     return 0;
 }
@@ -1033,6 +1092,7 @@ int p6fs_read(const char *path, char *buf, size_t size, off_t offset, struct fus
 int p6fs_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fileInfo)
 {
     /* get inode from file handle and do operation*/
+    
 }
 
 int p6fs_truncate(const char *path, off_t newSize)
@@ -1069,7 +1129,6 @@ int p6fs_release(const char *path, struct fuse_file_info *fileInfo)
 int p6fs_getattr(const char *path, struct stat *statbuf)
 {
     /*stat() file or directory */
-
     memset(statbuf, 0, sizeof(struct stat));
     
     int inode_num = pathref(path, CHILD);
@@ -1079,33 +1138,105 @@ int p6fs_getattr(const char *path, struct stat *statbuf)
 	struct inode_t inode;
 	getinode(&inode, inode_num);
 	if(inode.mode == DIR_T){
-	    statbuf->st_mode = S_IFDIR | 755;
+	    statbuf->st_mode = S_IFDIR | inode.access_mod;
 	    statbuf->st_nlink = inode.nlinks;
 	}
-	else{
-	    statbuf->st_mode = S_IFREG | 0444;
+	else if(inode.mode == FILE_T){
+	    statbuf->st_mode = S_IFREG | inode.access_mod;
 	    statbuf->st_nlink = inode.nlinks;
 	    statbuf->st_size = inode.size;
 	}
+	else{
+	    statbuf->st_mode = S_IFLNK | inode.access_mod;
+	    statbuf->st_nlink = inode.nlinks;
+	    statbuf->st_size = inode.size;
+	}
+	statbuf->st_ctim.tv_sec = inode_table[inode_num].create_time;
+	statbuf->st_atim.tv_sec = inode_table[inode_num].last_access_time;
+	statbuf->st_mtim.tv_sec = inode_table[inode_num].last_modified_time;
     }
     return 0;
 }
 
 int p6fs_utime(const char *path, struct utimbuf *ubuf){
+    int inode_num = pathref(path, CHILD);
+    if(inode_num == -ENOENT)
+	return -ENOENT;
+    ubuf->actime = inode_table[inode_num].last_access_time;
+    ubuf->modtime = inode_table[inode_num].last_modified_time;
     return 0;
 };//optional
-int p6fs_chmod(const char *path, mode_t mode); //optional
-int p6fs_chown(const char *path, uid_t uid, gid_t gid);//optional
+int p6fs_chmod(const char *path, mode_t mode){
+    return 0;
+} //optional
+int p6fs_chown(const char *path, uid_t uid, gid_t gid){
+    return 0;
+}//optional
 
 
 int p6fs_rename(const char *path, const char *newpath)
 {
-    
+    if(strcmp(path, newpath) == 0)
+	return 0;
+
+    int child_inode_num, old_parent_inode_num, new_parent_inode_num;
+    struct inode_t child_inode, old_parent_inode, new_parent_inode;
+    char child_filename[FILENAME_MAX], new_child_filename[FILENAME_MAX];
+
+    child_inode_num = pathref(path, CHILD);
+    old_parent_inode_num = pathref(path, PARENT);
+    new_parent_inode_num = pathref(newpath, PARENT);
+
+    if(child_inode_num == -ENOENT || old_parent_inode_num == -ENOENT || new_parent_inode_num == -ENOENT)
+	return -ENOENT;
+
+    getinode(&old_parent_inode, old_parent_inode_num);
+    getinode(&new_parent_inode, new_parent_inode_num);
+
+    getfilename(path, child_filename);
+    getfilename(newpath, new_child_filename);
+    pthread_mutex_lock(&bitmap_lock);
+    pthread_mutex_lock(&inode_lock);
+
+    int status;
+    status = remove_entry(&old_parent_inode, old_parent_inode_num, child_filename);
+    if(status != 0){
+	pthread_mutex_unlock(&bitmap_lock);
+	pthread_mutex_unlock(&inode_lock);
+	return status;
+    }
+
+    struct file_inode *fip = (struct file_inode*)malloc(old_parent_inode.size);
+    if(fip == NULL)
+	return -ENOMEM;
+    memset(fip, 0, old_parent_inode.size);
+    // TODO return -ENOBUF in readdir
+    readdirfile(fip, old_parent_inode.size,
+		old_parent_inode.direct_pointer, old_parent_inode.one_level_pointer);
+
+    if(new_parent_inode.size % SECTOR_SIZE == 0)
+	if(extend_dir(new_parent_inode_num) == -1)
+	    return -ENOMEM;
+    status = create_entry(&new_parent_inode,
+			  new_parent_inode_num,
+			  new_child_filename,
+			  child_inode_num);
+    if(status != 0){
+	pthread_mutex_unlock(&bitmap_lock);
+	pthread_mutex_unlock(&inode_lock);
+	return -EEXIST;	
+    }
+    update_metadata(old_parent_inode_num == ROOT_INODE || new_parent_inode_num == ROOT_INODE);
+    device_flush();
+    pthread_mutex_unlock(&bitmap_lock);
+    pthread_mutex_unlock(&inode_lock);
+    return 0;
 }
 
 int p6fs_statfs(const char *path, struct statvfs *statInfo)
 {
     /*print fs status and statistics */
+    return 0;
 }
 
 
@@ -1187,7 +1318,9 @@ static int p6_mkfs(struct superblock_t *sb){
 	inode_table[ROOT_INODE].direct_pointer[i] = i + ROOT_DIR;
     }
     inode_table[ROOT_INODE].one_level_pointer = 4 + ROOT_DIR;
-
+    inode_table[ROOT_INODE].create_time = time(NULL);
+    inode_table[ROOT_INODE].last_access_time = inode_table[ROOT_INODE].create_time;
+    inode_table[ROOT_INODE].last_modified_time = inode_table[ROOT_INODE].last_access_time;
     // Now we may deal with the bitmaps
     // inode bitmap
     // this is initializing stage, so of one inode is used: rootdir

@@ -55,14 +55,19 @@ struct superblock_t{
 };
 
 
-// size of struct inode_t is 32 bytes
+// size of struct inode_t is 64 bytes
 struct inode_t{
     // complete it
-    node_type mode;
+    node_type mode;          
     unsigned int size;           // enough to hold 4 GB file
     unsigned int nlinks;         // hard links and symbol links
     unsigned int direct_pointer[4];    // pointers to data block, each manage 4KB space
     unsigned int one_level_pointer;   // two level addressing will give you a char pointer
+    // 32 bytes above, some space is wasted
+    uint64_t last_access_time;
+    uint64_t last_modified_time;
+    uint64_t create_time;
+    uint64_t access_mod;
 };
 
 
@@ -158,7 +163,7 @@ void p6fs_destroy(void* private_data);//optional
 // [    ]p6fs_rmdir
 // [    ]p6fs_readdir
 // [    ]p6fs_mknod
-// [TODO]p6fs_symlink
+// [    ]p6fs_symlink
 // [    ]p6fs_link
 // [    ]p6fs_unlink
 // [    ]p6fs_open
@@ -167,7 +172,11 @@ void p6fs_destroy(void* private_data);//optional
 // [TODO]p6fs_truncate
 // [    ]p6fs_release
 // [    ]p6fs_getattr
-// [TODO]p6fs_rename
+// [    ]p6fs_rename
 // [TODO]p6fs_statfs
 // [    ]p6fs_init
+// [    ]p6fs_utime
+// [TODO]p6fs_readlink
+// [TODO]p6fs_chmod
+// [TODO]p6fs_destroy 
 #endif
