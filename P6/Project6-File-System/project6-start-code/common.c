@@ -426,6 +426,9 @@ static int allocate_and_create_entry(int parent_inode_num, struct file_inode *fi
 	device_write_sector(buffer, inode_table[empty_inode_num].direct_pointer[0]);
     }
     device_flush();
+
+    glo_superblock.available_blocks--;
+    glo_superblock.available_inodes--;
     return 0;
 }
 
@@ -688,6 +691,8 @@ static int remove_entry_and_restore(struct inode_t *parent_inode, int parent_ino
     device_flush();
     free(fip);
     fip = NULL;
+    glo_superblock.available_blocks++;
+    glo_superblock.available_inodes++;
     return 0;
 }
 
@@ -1247,6 +1252,14 @@ int p6fs_rename(const char *path, const char *newpath)
 int p6fs_statfs(const char *path, struct statvfs *statInfo)
 {
     /*print fs status and statistics */
+    statInfo->f_bavail = glo_superblock.available_blocks;  // free blocks
+    statInfo->f_bfree = glo_superblock.available_blocks;   // free blocks
+    statInfo->f_blocks = INODE_NUM;                        // number of blocks
+    statInfo->f_bsize = SECTOR_SIZE;                       // block size
+//    statInfo->f_favail = 456;
+    statInfo->f_ffree = glo_superblock.available_inodes;   // unused inodes
+    statInfo->f_files = glo_superblock.available_inodes;   // total number of inodes
+//    statInfo->f_frsize =123;
     return 0;
 }
 
@@ -1313,13 +1326,16 @@ static int p6_mkfs(struct superblock_t *sb){
     sb->magic = 1;
     sb->num_dblock = INODE_NUM;                            // 1048576
     sb->num_inodes = INODE_NUM;     		           // 1048576
+    sb->available_blocks = INODE_NUM;                      // 1048576
+    sb->available_inodes = INODE_NUM;
     sb->root_dir = ROOT_DIR;        		           // 8258
     sb->root_dir_inode = ROOT_INODE;		           // 0
     sb->root_dir_size = 2 * sizeof(struct file_inode);     // . and ..
     sb->inode_table_base = INODE_BASE; 		           // 65
     sb->dblock_base = DBLOCK_BASE;     		           // 8262
     sb->inode_bitmap_base = INODE_BITMAP_BASE;	           // 1
-    sb->dblock_bitmap_base = DBLOCK_BITMAP_BASE;           // 33   
+    sb->dblock_bitmap_base = DBLOCK_BITMAP_BASE;           // 33
+
 
     // initialize root directory
     inode_table[ROOT_INODE].mode = DIR_T;

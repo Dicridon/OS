@@ -51,6 +51,8 @@ struct superblock_t{
     unsigned int dblock_base;      // base address of data blocks
     unsigned int inode_bitmap_base;
     unsigned int dblock_bitmap_base;
+    unsigned int available_blocks;
+    unsigned int available_inodes;
     // this struct is well aligned
 };
 
@@ -173,7 +175,7 @@ void p6fs_destroy(void* private_data);//optional
 // [    ]p6fs_release
 // [    ]p6fs_getattr
 // [    ]p6fs_rename
-// [TODO]p6fs_statfs
+// [    ]p6fs_statfs
 // [    ]p6fs_init
 // [    ]p6fs_utime
 // [TODO]p6fs_readlink

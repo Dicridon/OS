@@ -1,3 +1,0 @@
-break p6fs_getattr
-break p6fs_mknod
-break allocate_and_create_entry

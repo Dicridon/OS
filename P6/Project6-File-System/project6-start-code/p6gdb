@@ -1,8 +1,0 @@
-break p6fs_init
-break p6fs_mkdir
-break p6fs_getattr
-break p6fs_rmdir
-break p6fs_open
-break p6fs_read
-break p6fs_release
-break allocate_and_create_dir
