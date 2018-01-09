@@ -163,24 +163,24 @@ void p6fs_destroy(void* private_data);//optional
 
 
 /// TODO list
-// [    ]p6fs_mkdir
-// [    ]p6fs_rmdir
-// [    ]p6fs_readdir
-// [    ]p6fs_mknod
-// [    ]p6fs_symlink
-// [    ]p6fs_link
-// [    ]p6fs_unlink
-// [    ]p6fs_open
-// [    ]p6fs_read
-// [TODO]p6fs_write
-// [TODO]p6fs_truncate
-// [    ]p6fs_release
-// [    ]p6fs_getattr
-// [    ]p6fs_rename
-// [    ]p6fs_statfs
-// [    ]p6fs_init
-// [    ]p6fs_utime
-// [    ]p6fs_readlink
-// [    ]p6fs_chmod
-// [TODO]p6fs_destroy 
+// [DONE]p6fs_mkdir
+// [DONE]p6fs_rmdir
+// [DONE]p6fs_readdir
+// [DONE]p6fs_mknod
+// [DONE]p6fs_symlink
+// [DONE]p6fs_link
+// [DONE]p6fs_unlink
+// [DONE]p6fs_open
+// [DONE]p6fs_read
+// [DONE]p6fs_write
+// [DONE]p6fs_truncate
+// [DONE]p6fs_release
+// [DONE]p6fs_getattr
+// [DONE]p6fs_rename
+// [DONE]p6fs_statfs
+// [DONE]p6fs_init
+// [DONE]p6fs_utime
+// [DONE]p6fs_readlink
+// [DONE]p6fs_chmod
+// [DONE]p6fs_destroy 
 #endif

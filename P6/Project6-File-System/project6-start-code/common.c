@@ -384,7 +384,7 @@ static int allocate_and_create_entry(int parent_inode_num, struct file_inode *fi
 
     for(int i = 0; i < 4; i++)
 	inode_table[empty_inode_num].direct_pointer[i] = 0xffffffff;
-    write_bitmap_bit(slot, dblock_bitmap);
+
     write_bitmap_bit(empty_inode_num, inode_bitmap);
     inode_table[empty_inode_num].mode = type;
     inode_table[empty_inode_num].nlinks = (type == DIR_T) ? 2 : 1;
@@ -410,6 +410,7 @@ static int allocate_and_create_entry(int parent_inode_num, struct file_inode *fi
     
     // write child directory
     if(type == DIR_T){
+	write_bitmap_bit(slot, dblock_bitmap);
 	struct file_inode new_fip[2] =  {
 	    {.file_name = ".", .ino = empty_inode_num},
 	    {.file_name = "..", .ino = parent_inode_num}
@@ -421,13 +422,17 @@ static int allocate_and_create_entry(int parent_inode_num, struct file_inode *fi
     }
     else if(type == SYMLINK_T){
 	unsigned char buffer[SECTOR_SIZE];
+	write_bitmap_bit(slot, dblock_bitmap);
 	if(strlen(link_to) >= SECTOR_SIZE)
 	    return -ENOBUFS;
 	memcpy(buffer, link_to, strlen(link_to));
 	device_write_sector(buffer, inode_table[empty_inode_num].direct_pointer[0]);
     }
+    else{
+	inode_table[empty_inode_num].direct_pointer[0] = 0xffffffff;
+    }
+    
     device_flush();
-
     glo_superblock.available_blocks--;
     glo_superblock.available_inodes--;
     return 0;
@@ -451,8 +456,11 @@ static int create_entry(struct inode_t *parent_inode, int parent_inode_num, char
     int items = parent_inode->size / sizeof(struct file_inode);
     int pindex;
     for(pindex = 0; pindex < items; pindex++){
-	if(strcmp(filename, fip[pindex].file_name) == 0)
+	if(strcmp(filename, fip[pindex].file_name) == 0){
+	    free(fip);
 	    return -EEXIST;      // directory or file already exsits
+	}
+
     }
     // update parent directory
     strcpy(fip[pindex].file_name, filename);
@@ -466,6 +474,7 @@ static int create_entry(struct inode_t *parent_inode, int parent_inode_num, char
     // update inode_table
     inode_table[parent_inode_num].size = parent_inode->size;
     device_flush();
+    free(fip);
     return 0;
 }
 
@@ -549,9 +558,6 @@ static int pathref(const char* path, int parent){
 
 // DO allocate sapce for char *name
 static void getfilename(const char* path, char* filename){
-    char* innerpath = (char*)malloc(strlen(path) * sizeof(char));
-    strcpy(innerpath, path);
-
     char* name = path + strlen(path);
     while(*name != '/')
 	name--;
@@ -607,6 +613,7 @@ static int remove_entry(struct inode_t *parent_inode, int parent_inode_num, cons
 		 inode_table[parent_inode_num].size,
 		 inode_table[parent_inode_num].direct_pointer,
 		 inode_table[parent_inode_num].one_level_pointer);
+    free(fip);
     device_flush();
     return 0;
 }
@@ -807,12 +814,16 @@ int p6fs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offs
 	return -ENOMEM;
     readdirfile(files, inode.size, inode.direct_pointer, inode.one_level_pointer);
 
-    if(inode.mode != DIR_T)
+    if(inode.mode != DIR_T){
+	free(files);
 	return -ENOTDIR;
+    }
     else{
 	for(unsigned long i = 0; i < inode.size / sizeof(struct file_inode); i++){
-	    if(filler(buf, files[i].file_name, NULL, 0) == 1)
-		return -ENOBUFS;
+	    if(filler(buf, files[i].file_name, NULL, 0) == 1){
+		free(files);
+		return -ENOBUFS;		
+	    }
 	}
     }
     return 0;    
@@ -1162,7 +1173,7 @@ static void read_file_pointers(unsigned int *pointers, int start_block, int tota
     }
 }
 
-static int readregfile(char *buf, unsigned int block_offset, size_t size, unsigned int *pointers, int blocks){
+static int readregfile(char *buf, unsigned int block_offset, long size, unsigned int *pointers, int blocks){
     unsigned char buffer[SECTOR_SIZE];
     int index = 0;
     unsigned int bytes = 0;
@@ -1170,7 +1181,7 @@ static int readregfile(char *buf, unsigned int block_offset, size_t size, unsign
     device_read_sector(buffer, pointers[index++]);
     memcpy(buf,
 	   buffer+block_offset,
-	   (SECTOR_SIZE - block_offset > size) ? size : SECTOR_SIZE-block_offset);
+	   (SECTOR_SIZE - block_offset> size) ? size : SECTOR_SIZE-block_offset);
     if(size <= SECTOR_SIZE-block_offset)
 	return size;
 
@@ -1180,7 +1191,7 @@ static int readregfile(char *buf, unsigned int block_offset, size_t size, unsign
     for(; index < blocks; index++){
 	device_read_sector(buffer, pointers[index]);
 	int copy_size = (SECTOR_SIZE > size) ? size : SECTOR_SIZE;
-	memcpy(buf+ (SECTOR_SIZE-block_offset) + (index-1)*SECTOR_SIZE, buffer, copy_size);
+	memcpy(buf+ block_offset % SECTOR_SIZE + (index-1)*SECTOR_SIZE, buffer, copy_size);
 	bytes += copy_size;
 	size -= copy_size;
     }
@@ -1210,7 +1221,7 @@ int p6fs_read(const char *path, char *buf, size_t size, off_t offset, struct fus
       then compute which blocks will be used according to size and offset, then we just read those 
       blocks using device_read.
      */
-    if(offset > fd->node->size){
+    if(offset > fd->node->size || fd->node->size == 0){
 	memset(buf, 0, size);
 	return 0;
     }
@@ -1243,28 +1254,228 @@ int p6fs_read(const char *path, char *buf, size_t size, off_t offset, struct fus
     return readbytes;
 }
 
+static int writeregfile(const char *buf, long size, off_t offset, unsigned int *pointers, int blocks){
+    unsigned char buffer[SECTOR_SIZE];
+    int bytes = 0;
+    int index = 0;
+    int copysize;
+    device_read_sector(buffer, pointers[0]);
+    copysize = (SECTOR_SIZE - offset - 1 > size) ? size : SECTOR_SIZE-offset-1;
+    bytes += copysize;
+    memcpy(buffer+(offset % SECTOR_SIZE),
+	   buf,
+	   (SECTOR_SIZE-offset) > size ? size : SECTOR_SIZE-offset);
+    device_write_sector(buffer, pointers[index++]);
+    for(; index < blocks; index++){
+	copysize = (SECTOR_SIZE > size) ? size : SECTOR_SIZE;
+	memcpy(buffer, buf+offset%SECTOR_SIZE + (index-1)*SECTOR_SIZE, copysize);
+	device_write_sector(buffer, pointers[index]);
+	bytes += copysize;
+	size -= copysize;
+    }
+    device_flush();
+    return bytes;
+}
+
+// this function should only be called when it is sure that blocks owned are strictly more
+// then blocks needed
+static void shrink(int inode_num, int blocks_needed){
+    int filesize = inode_table[inode_num].size;
+    int blocks_owned = filesize / SECTOR_SIZE + (filesize % SECTOR_SIZE != 0);
+
+    unsigned int one_level_pointers[SECTOR_SIZE/4];
+    unsigned int pointers_to_two_level_pointers[SECTOR_SIZE/4];
+
+    // direct pointers
+    int redundant_blocks = blocks_owned - blocks_needed;
+    if(blocks_needed < 4){
+	for(int i = blocks_needed; i < blocks_owned && i < 4; i++){
+	    clear_bitmap_bit(inode_table[inode_num].direct_pointer[i], dblock_bitmap);
+	    redundant_blocks--;
+	}
+    }
+
+    // one-level-pointers
+    if(blocks_needed < 1028 && redundant_blocks > 0){
+	device_read_sector((unsigned char *)one_level_pointers,
+			   inode_table[inode_num].one_level_pointer);
+	for(int i = blocks_needed-4; i < blocks_owned-4 && i < 1024; i++){
+	    clear_bitmap_bit(one_level_pointers[i], dblock_bitmap);
+	    redundant_blocks--;
+	}
+	if(blocks_needed == 4)
+	    clear_bitmap_bit(inode_table[inode_num].one_level_pointer,
+			     dblock_bitmap);
+    }
+
+    // two-level-pointers
+    int firsttime = 1;
+    if(redundant_blocks > 0){
+	unsigned int buffer[SECTOR_SIZE/4];
+	device_read_sector((unsigned char *)pointers_to_two_level_pointers,
+			   inode_table[inode_num].two_level_pointer);
+	for(int j = (blocks_needed-1028) / 1024; redundant_blocks > 0; j++){
+	    for(int i = (firsttime) ? (blocks_needed-1028) % 1024 : 0; i < 1024 && redundant_blocks > 0; i++){
+		device_read_sector((unsigned char *)buffer, pointers_to_two_level_pointers[j]);
+		clear_bitmap_bit(buffer[i], dblock_bitmap);
+		redundant_blocks--;
+	    }
+	    device_write_sector((unsigned char *)buffer, pointers_to_two_level_pointers[j]);
+	    firsttime = 0;
+	}
+	if(blocks_needed == 1028)
+	    clear_bitmap_bit(inode_table[inode_num].two_level_pointer, dblock_bitmap);
+    }
+    device_flush();
+}
+
+static void extend_file(int inode_num, int blocks_needed){
+    int filesize = inode_table[inode_num].size;
+    int blocks_owned = filesize / SECTOR_SIZE + (filesize % SECTOR_SIZE != 0);
+    int slot;
+    unsigned int one_level_pointers[SECTOR_SIZE/4];
+    unsigned int pointers_to_two_level_pointers[SECTOR_SIZE/4];
+
+    // how many extra blocks are needed
+    blocks_needed -= blocks_owned;
+    
+    // direct pointers
+    if(blocks_owned < 4){
+	for(int i = blocks_owned; i < 4 && blocks_needed > 0; i++){
+	    slot = bitmap_lookup(dblock_bitmap) + DBLOCK_BASE;
+	    inode_table[inode_num].direct_pointer[i] = slot;
+	    write_bitmap_bit(slot, dblock_bitmap);
+	    blocks_needed--;
+	}
+    }
+
+    // one-level-pointers
+    if(blocks_needed > 0 && blocks_owned < 1028){
+	if(blocks_owned == 4){
+	    slot = bitmap_lookup(dblock_bitmap) + DBLOCK_BASE;
+	    inode_table[inode_num].one_level_pointer = slot;
+	    write_bitmap_bit(slot, dblock_bitmap);
+	}
+	device_read_sector((unsigned char *)one_level_pointers,
+			   inode_table[inode_num].one_level_pointer);
+	for(int i = blocks_owned-4; i < 1024 && blocks_needed > 0; i++){
+	    slot = bitmap_lookup(dblock_bitmap) + DBLOCK_BASE;
+	    one_level_pointers[i] = slot;
+	    write_bitmap_bit(slot, dblock_bitmap);
+	    blocks_needed--;
+	}
+	device_write_sector((unsigned char *)one_level_pointers,
+			    inode_table[inode_num].one_level_pointer);
+    }
+
+    // two-level-pointers
+    int firsttime = 1;
+    if(blocks_needed > 0){
+	unsigned int buffer[SECTOR_SIZE/4];
+	if(blocks_owned == 1028){
+	    slot = bitmap_lookup(dblock_bitmap) + DBLOCK_BASE;
+	    inode_table[inode_num].two_level_pointer = slot;
+	    write_bitmap_bit(slot, dblock_bitmap);
+	}
+	device_read_sector((unsigned char *)pointers_to_two_level_pointers,
+			   inode_table[inode_num].two_level_pointer);
+
+	for(int j = (blocks_owned - 1028) / 1024; j < 1024 && blocks_needed > 0; j++){
+	    slot = bitmap_lookup(dblock_bitmap) + DBLOCK_BASE;
+	    pointers_to_two_level_pointers[j] = slot;
+	    write_bitmap_bit(slot, dblock_bitmap);
+	    for(int i = (firsttime) ? (blocks_owned - 1028) % 1024 : 0; i < 1024 && blocks_needed > 0; i++){
+		device_read_sector((unsigned char *)buffer,
+				   pointers_to_two_level_pointers[j]);
+		slot = bitmap_lookup(dblock_bitmap) + DBLOCK_BASE;
+		buffer[i] = slot;
+		write_bitmap_bit(slot, dblock_bitmap);
+		blocks_needed--;
+	    }
+	    device_write_sector((unsigned char *)buffer, pointers_to_two_level_pointers[j]);
+	    firsttime = 0;
+	}
+    }
+    device_flush();
+}
+
+/* get inode from file handle and do operation*/
+// seems that the offset will always be zero, so things get easy
+/*
+  if size > file->size
+      extend_file
+      get_pointers
+      write_file
+  else
+      write_file
+      shrink_file
+      restore_blocks
+*/
 int p6fs_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fileInfo)
 {
-    /* get inode from file handle and do operation*/
-    // seems that the offset will always be zero, so things get easy
-    /*
-      if size > file->size
-          extend_file
-          get_pointers
-          write_file
-      else
-          write_file
-          shrink_file
-          restore_blocks
-     */
     struct file_info *fd = (struct file_info *)fileInfo->fh;
+    int blocks_owned = fd->node->size / SECTOR_SIZE + (fd->node->size % SECTOR_SIZE != 0);
+    int blocks_needed = (offset + size) / SECTOR_SIZE + ((size + offset) % SECTOR_SIZE != 0);
+    int bytes;
+    int start_block;
+    int start_point_in_start_block;
+    int end_block;
+    int end_point_in_end_block;
+    int total_blocks;
+    int file_blocks;    // blocks a file really occupies
+    int available_blocks;
+    unsigned int *block_pointers = NULL;
+    if(!fd->allocated)
+	return -ENOMEM;
+    start_block = offset / SECTOR_SIZE;
+    start_point_in_start_block = offset % SECTOR_SIZE;
+    end_block = (size - 1 + offset) / SECTOR_SIZE;
+    end_point_in_end_block = (size - 1 + offset) % SECTOR_SIZE;
+
+    file_blocks = (fd->node->size / SECTOR_SIZE) + (fd->node->size % SECTOR_SIZE != 0);
+    total_blocks = end_block - start_block + 1;
+    available_blocks = file_blocks - start_block + 1;
+    total_blocks = (available_blocks <= total_blocks) ? available_blocks : total_blocks;
     
-    return 0;
+    block_pointers = (unsigned int *)malloc(total_blocks);
+    if(block_pointers == NULL){
+	return -ENOMEM;
+    }
+	
+    pthread_mutex_lock(&bitmap_lock);
+    pthread_mutex_lock(&inode_lock);
+    
+    if(blocks_needed == blocks_owned){
+	read_file_pointers(block_pointers, 0, blocks_needed, fd->inode_num);
+    }
+    else if(blocks_needed < blocks_owned){
+	read_file_pointers(block_pointers, 0, blocks_needed, fd->inode_num);
+	shrink(fd->inode_num, blocks_needed);
+    }
+    else{
+	extend_file(fd->inode_num, blocks_needed);
+	read_file_pointers(block_pointers, 0, blocks_needed, fd->inode_num);
+    }
+    update_metadata(0);
+    pthread_mutex_unlock(&bitmap_lock);
+    pthread_mutex_unlock(&inode_lock);
+    
+    bytes = writeregfile(buf, size, offset, block_pointers, blocks_needed);
+    free(block_pointers);
+    return bytes;
 }
 
 int p6fs_truncate(const char *path, off_t newSize)
 {
+    int inode_num = pathref(path, CHILD);
+    if(inode_num == -ENOENT)
+	return -ENOENT;
+    if(newSize < 0 || (unsigned long)newSize > 3 * G)
+	return -EINVAL;
     
+    int blocks_needed = newSize / SECTOR_SIZE + (newSize % SECTOR_SIZE != 0);
+    shrink(inode_num, blocks_needed);
+    return 0;
 }
 
 //optional
@@ -1402,8 +1613,14 @@ int p6fs_rename(const char *path, const char *newpath)
 		old_parent_inode.direct_pointer, old_parent_inode.one_level_pointer);
 
     if(new_parent_inode.size % SECTOR_SIZE == 0)
-	if(extend_dir(new_parent_inode_num) == -1)
-	    return -ENOMEM;
+	if(extend_dir(new_parent_inode_num) == -1){
+	    free(fip);
+	    fip = NULL;
+	    pthread_mutex_unlock(&bitmap_lock);
+	    pthread_mutex_unlock(&inode_lock);
+	    return -ENOMEM;	    
+	}
+
     status = create_entry(&new_parent_inode,
 			  new_parent_inode_num,
 			  new_child_filename,
@@ -1411,10 +1628,14 @@ int p6fs_rename(const char *path, const char *newpath)
     if(status != 0){
 	pthread_mutex_unlock(&bitmap_lock);
 	pthread_mutex_unlock(&inode_lock);
+	free(fip);
+	fip = NULL;
 	return -EEXIST;	
     }
     update_metadata(old_parent_inode_num == ROOT_INODE || new_parent_inode_num == ROOT_INODE);
     device_flush();
+    free(fip);
+    fip = NULL;
     pthread_mutex_unlock(&bitmap_lock);
     pthread_mutex_unlock(&inode_lock);
     return 0;
@@ -1460,6 +1681,8 @@ static int p6_mount(struct superblock_t *sb){
     // read the whole directory in memory;
     // each block stores 64 entries;
     rootdir.fi = (struct file_inode*)malloc(rootdir.dir_size);  // will not be freed
+    struct fuse_context *fuse_con = fuse_get_context();
+    fuse_con->private_data = (void *)rootdir.fi;
     struct inode_t dirinode;
     getinode(&dirinode, ROOT_INODE);
     readdirfile(rootdir.fi, rootdir.dir_size, dirinode.direct_pointer, dirinode.one_level_pointer);
@@ -1619,6 +1842,9 @@ void p6fs_destroy(void* private_data)
      flush data to disk
      free memory
      */
+    device_flush();
+    struct fuse_context *fuse_con = fuse_get_context();
+    free(fuse_con->private_data);
     device_close();
     logging_close();
 }
