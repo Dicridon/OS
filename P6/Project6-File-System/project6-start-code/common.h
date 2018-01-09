@@ -65,11 +65,13 @@ struct inode_t{
     unsigned int nlinks;         // hard links and symbol links
     unsigned int direct_pointer[4];    // pointers to data block, each manage 4KB space
     unsigned int one_level_pointer;   // two level addressing will give you a char pointer
-    // 32 bytes above, some space is wasted
+    unsigned int two_level_pointer;
+    // 36 bytes above, some space is wasted
     uint64_t last_access_time;
     uint64_t last_modified_time;
     uint64_t create_time;
-    uint64_t access_mod;
+    uint32_t access_mod;
+
 };
 
 
@@ -169,7 +171,7 @@ void p6fs_destroy(void* private_data);//optional
 // [    ]p6fs_link
 // [    ]p6fs_unlink
 // [    ]p6fs_open
-// [TODO]p6fs_read
+// [    ]p6fs_read
 // [TODO]p6fs_write
 // [TODO]p6fs_truncate
 // [    ]p6fs_release
@@ -178,7 +180,7 @@ void p6fs_destroy(void* private_data);//optional
 // [    ]p6fs_statfs
 // [    ]p6fs_init
 // [    ]p6fs_utime
-// [TODO]p6fs_readlink
-// [TODO]p6fs_chmod
+// [    ]p6fs_readlink
+// [    ]p6fs_chmod
 // [TODO]p6fs_destroy 
 #endif

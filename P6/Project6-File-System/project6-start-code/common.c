@@ -391,10 +391,11 @@ static int allocate_and_create_entry(int parent_inode_num, struct file_inode *fi
     inode_table[empty_inode_num].size = (type == DIR_T) ? 2 * sizeof(struct file_inode) : 0;    
     inode_table[empty_inode_num].direct_pointer[0] = slot + DBLOCK_BASE;
     inode_table[empty_inode_num].one_level_pointer = 0xffffffff;
+    inode_table[empty_inode_num].two_level_pointer = 0xffffffff;
     inode_table[empty_inode_num].create_time = time(NULL);
     inode_table[empty_inode_num].last_access_time = inode_table[empty_inode_num].create_time;
     inode_table[empty_inode_num].last_modified_time = inode_table[empty_inode_num].last_access_time;
-    inode_table[empty_inode_num].access_mod = (type == DIR_T) ? 0755 : 0644;
+    inode_table[empty_inode_num].access_mod = (type == DIR_T || type == SYMLINK_T) ? 0755 : 0644;
 
     // update parent directory
     strcpy(fip[pindex].file_name, filename);
@@ -500,15 +501,11 @@ static int pathref(const char* path, int parent){
     innerpath = (char*)malloc(strlen(path) * sizeof(char));
     nullptrcheck(innerpath);
 
-
     tempdir.fi = (struct file_inode*)malloc(1028*128*sizeof(struct file_inode));
     nullptrcheck(tempdir.fi);
 
-
     strcpy(innerpath, path);
     token = strtok(innerpath, "/");
-//    if(*path == '/'){
-    
     currdir = &rootdir;
     while(token != NULL){
 	items = currdir->dir_size / sizeof(struct file_inode);
@@ -531,7 +528,6 @@ static int pathref(const char* path, int parent){
 		break;
 	    }
 	}
-		    
 	getinode(&tempinode, inode_num);
 	tempdir.dir_size = tempinode.size;
 	tempdir.ino = inode_num;
@@ -544,7 +540,6 @@ static int pathref(const char* path, int parent){
 	token_num--;
 	find = 0;
     }
-	//  }
 
     free(innerpath);
     free(tempdir.fi);
@@ -708,7 +703,10 @@ int p6fs_mkdir(const char *path, mode_t mode)
     
     struct inode_t parent_inode;
     getinode(&parent_inode, parent_inode_num);
-
+    if(parent_inode.mode != DIR_T)
+	return -ENOTDIR;
+    else if(parent_inode.size > 4 * M)
+	return -ENOMEM;
     // read the whole parent directory
     struct file_inode *fip;
     struct file_inode new_dir;
@@ -789,7 +787,7 @@ int p6fs_rmdir(const char *path)
     clear_bitmap_bit(child_inode_num, inode_bitmap);
     clear_bitmap_bit(child_inode.direct_pointer[0]-DBLOCK_BASE, dblock_bitmap);
     update_metadata(parent_inode_num == ROOT_INODE);
-
+    device_flush();
     pthread_mutex_unlock(&bitmap_lock);
     pthread_mutex_unlock(&inode_lock);
     return 0;
@@ -839,7 +837,10 @@ int p6fs_mknod(const char *path, mode_t mode, dev_t dev)
     
     struct inode_t parent_inode;
     getinode(&parent_inode, parent_inode_num);
-
+    if(parent_inode.mode != DIR_T)
+	return -ENOTDIR;
+    else if(parent_inode.size > 4*M)
+	return -ENOMEM;
     // read the whole parent directory
     struct file_inode *fip;
     struct file_inode new_dir;
@@ -881,12 +882,26 @@ int p6fs_mknod(const char *path, mode_t mode, dev_t dev)
     return 0;
 }
 
-//int p6fs_readlink(const char *path, char *link, size_t size);
+int p6fs_readlink(const char *path, char *link, size_t size){
+    int inode_num = pathref(path, CHILD);
+    if(inode_num == -ENOENT)
+	return -ENOENT;
+
+    unsigned char buffer[SECTOR_SIZE];
+    memset(buffer, 0, SECTOR_SIZE);
+    device_read_sector(buffer, inode_table[inode_num].direct_pointer[0]);
+    memcpy(link, buffer, (size > SECTOR_SIZE) ? SECTOR_SIZE : size);
+    return 0;
+}
+
     
 
 
 int p6fs_symlink(const char *path, const char *link)
 {
+    if(strlen(link) >= SECTOR_SIZE)
+	return -ENOBUFS;
+	
     int parent_inode_num = pathref(link, PARENT);
     char filename[FILENAME_MAX] = "";
     getfilename(link, filename);
@@ -896,7 +911,7 @@ int p6fs_symlink(const char *path, const char *link)
     
     struct inode_t parent_inode;
     getinode(&parent_inode, parent_inode_num);
-
+    
 
     struct file_inode *fip = (struct file_inode*)malloc(sizeof(struct file_inode) + parent_inode.size);
     if(fip == NULL){
@@ -947,10 +962,11 @@ int p6fs_link(const char *path, const char *newpath)
     struct inode_t new_parent_inode;
     int child_inode_num = pathref(path, CHILD);
     getinode(&new_parent_inode, new_parent_inode_num);
-
+    
     if(new_parent_inode_num == -ENOENT || child_inode_num == -ENOENT)
 	return -ENOENT;
-
+    if(new_parent_inode.size > 4*M)
+	return -ENOMEM;
     
     pthread_mutex_lock(&bitmap_lock);
     pthread_mutex_lock(&inode_lock);
@@ -1038,7 +1054,7 @@ int p6fs_unlink(const char *path)
     // resotre data blocks
     restore_file_dblocks(&child_inode);
     update_metadata(parent_inode_num == ROOT_INODE);
-
+    device_flush();
     pthread_mutex_unlock(&bitmap_lock);
     pthread_mutex_unlock(&inode_lock);
     
@@ -1070,13 +1086,14 @@ int p6fs_open(const char *path, struct fuse_file_info *fileInfo)
     }
 
     if(!find){
-	return -ENOENT;
+	return -EMFILE;
     }
 
-    fd_table[i].node = (struct inode_t*)malloc(sizeof(struct inode_t));
+    fd_table[i].node = &inode_table[inode_num];
     fd_table[i].allocated = 1;
     fd_table[i].flag = fileInfo->flags;
     fd_table[i].inode_num = inode_num;
+    
     //assign and init your file handle
 //    struct file_info *fi;
 
@@ -1095,16 +1112,154 @@ int p6fs_open(const char *path, struct fuse_file_info *fileInfo)
     return 0;
 }
 
+// below are functions only for read, wirte and truncate
+
+static void read_file_pointers(unsigned int *pointers, int start_block, int total_blocks, int inode_num){
+    unsigned int *direct_pointers = inode_table[inode_num].direct_pointer;
+    unsigned int one_level_pointers[SECTOR_SIZE/4];
+    unsigned int pointers_to_two_level_pointers[SECTOR_SIZE/4];
+    if(inode_table[inode_num].one_level_pointer != 0xffffffff){
+	device_read_sector((unsigned char*)one_level_pointers,
+			   inode_table[inode_num].one_level_pointer);
+    }
+    if(inode_table[inode_num].two_level_pointer != 0xffffffff){
+	device_read_sector((unsigned char*)pointers_to_two_level_pointers,
+			   inode_table[inode_num].two_level_pointer);
+    }
+
+    // first copy direct pointers
+    int index_in_pointers = 0;
+    if(start_block < 4){
+	for(int i = 0; i+start_block < 4 && total_blocks > 0; i++){
+	    pointers[index_in_pointers++] = direct_pointers[i+start_block];
+	    total_blocks--;
+	}
+    }
+
+    // copy one-level-pointers
+    start_block -= 4;   // if start block is in one-level-indexing blocks
+    if(total_blocks > 0){
+	for(int i = 0; i + start_block < 1024 && total_blocks > 0; i++){
+	    pointers[index_in_pointers++] = one_level_pointers[i+start_block];
+	    total_blocks--;
+	}
+    }
+
+    // copy two-level-pointers
+    start_block -= 1024;
+    int firsttime = 1; // pretend that all the two-level-pointers are in a single array
+    if(total_blocks > 0){
+	unsigned int two_level_pointers[SECTOR_SIZE/4];
+	for(int j = start_block / 1024; j < 1024 && total_blocks > 0; j++){
+	    device_read_sector((unsigned char *)two_level_pointers,
+			       pointers_to_two_level_pointers[j]);
+	    for(int i = (firsttime) ? start_block % 1024 : 0; i < 1024 && total_blocks > 0; i++){
+		pointers[index_in_pointers++] = two_level_pointers[i];
+		total_blocks--;
+	    }
+	    firsttime = 0;     // must set it to zero
+	}
+    }
+}
+
+static int readregfile(char *buf, unsigned int block_offset, size_t size, unsigned int *pointers, int blocks){
+    unsigned char buffer[SECTOR_SIZE];
+    int index = 0;
+    unsigned int bytes = 0;
+    // read first block
+    device_read_sector(buffer, pointers[index++]);
+    memcpy(buf,
+	   buffer+block_offset,
+	   (SECTOR_SIZE - block_offset > size) ? size : SECTOR_SIZE-block_offset);
+    if(size <= SECTOR_SIZE-block_offset)
+	return size;
+
+    // read rest blocks
+    bytes += SECTOR_SIZE - block_offset;
+    size -= SECTOR_SIZE - block_offset;
+    for(; index < blocks; index++){
+	device_read_sector(buffer, pointers[index]);
+	int copy_size = (SECTOR_SIZE > size) ? size : SECTOR_SIZE;
+	memcpy(buf+ (SECTOR_SIZE-block_offset) + (index-1)*SECTOR_SIZE, buffer, copy_size);
+	bytes += copy_size;
+	size -= copy_size;
+    }
+    return bytes;
+}
+
+// test: cat a symbol link to see if the path in that link can be read correctly
 int p6fs_read(const char *path, char *buf, size_t size, off_t offset, struct fuse_file_info *fileInfo)
 {
     /* get inode from file handle and do operation*/
+    struct file_info *fd = (struct file_info *)fileInfo->fh;
+    int readbytes = 0;
+    int start_block;
+    int start_point_in_start_block;
+    int end_block;
+    int end_point_in_end_block;
+    int total_blocks;
+    int file_blocks;    // blocks a file really occupies
+    int available_blocks;
+    unsigned int *block_pointers = NULL;
+    if(!fd->allocated)
+	return -ENOMEM;
+    /*
+      At first I wanted to read the context of a file into memory and then copy those bytes to buf
+      but this involved too many boundary conditions. So I changed my strategy: read all the
+      pointers to blocks into memory, which will not be too large, (4 + 1024 + 1024)*4 bytes,
+      then compute which blocks will be used according to size and offset, then we just read those 
+      blocks using device_read.
+     */
+    if(offset > fd->node->size){
+	memset(buf, 0, size);
+	return 0;
+    }
+	
+    start_block = offset / SECTOR_SIZE;
+    start_point_in_start_block = offset % SECTOR_SIZE;
+    end_block = (size - 1 + offset) / SECTOR_SIZE;
+    end_point_in_end_block = (size - 1 + offset) % SECTOR_SIZE;
+
+    file_blocks = (fd->node->size / SECTOR_SIZE) + (fd->node->size % SECTOR_SIZE != 0);
+    total_blocks = end_block - start_block + 1;
+    available_blocks = file_blocks - start_block + 1;
+    total_blocks = (available_blocks <= total_blocks) ? available_blocks : total_blocks;
     
+    block_pointers = (unsigned int *)malloc(total_blocks);
+
+    // code above limit block access with blocks a file really have strctly
+    // so below may read all the needed pointers sequently safely
+    read_file_pointers(block_pointers, start_block, total_blocks, fd->inode_num);
+
+    // now we may read context of a file
+    size = (size >= fd->node->size) ? fd->node->size : size;
+    readbytes = readregfile(buf, offset/SECTOR_SIZE, size, block_pointers, total_blocks);
+    
+    pthread_mutex_lock(&inode_lock);
+    fd->node->last_access_time = time(NULL);
+    pthread_mutex_unlock(&inode_lock);
+    
+    free(block_pointers);
+    return readbytes;
 }
 
 int p6fs_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fileInfo)
 {
     /* get inode from file handle and do operation*/
+    // seems that the offset will always be zero, so things get easy
+    /*
+      if size > file->size
+          extend_file
+          get_pointers
+          write_file
+      else
+          write_file
+          shrink_file
+          restore_blocks
+     */
+    struct file_info *fd = (struct file_info *)fileInfo->fh;
     
+    return 0;
 }
 
 int p6fs_truncate(const char *path, off_t newSize)
@@ -1129,15 +1284,16 @@ int p6fs_release(const char *path, struct fuse_file_info *fileInfo)
     for(int i = 0; i < MAX_OPEN_FILE; i++){
 	if(fd_table[i].inode_num == inode_num){
 	    find = 1;
-	    free(fd_table[i].node);
 	    fd_table[i].node = NULL;
+	    fd_table[i].allocated = 0;
 	    return 0;
 	}
     }
-
+    fileInfo->fh = 0;
     if(!find)
 	return -ENOENT;
 }
+
 int p6fs_getattr(const char *path, struct stat *statbuf)
 {
     /*stat() file or directory */
@@ -1178,9 +1334,23 @@ int p6fs_utime(const char *path, struct utimbuf *ubuf){
     ubuf->modtime = inode_table[inode_num].last_modified_time;
     return 0;
 };//optional
+
 int p6fs_chmod(const char *path, mode_t mode){
+    int inode_num = pathref(path, CHILD);
+    if(inode_num == -ENOENT)
+	return -ENOENT;
+
+    pthread_mutex_lock(&bitmap_lock);
+    pthread_mutex_lock(&inode_lock);
+    
+    inode_table[inode_num].access_mod = mode;
+    update_metadata(inode_num == ROOT_INODE);
+    device_flush();
+    pthread_mutex_lock(&bitmap_lock);
+    pthread_mutex_lock(&inode_lock);
     return 0;
 } //optional
+
 int p6fs_chown(const char *path, uid_t uid, gid_t gid){
     return 0;
 }//optional
@@ -1204,7 +1374,8 @@ int p6fs_rename(const char *path, const char *newpath)
 
     getinode(&old_parent_inode, old_parent_inode_num);
     getinode(&new_parent_inode, new_parent_inode_num);
-
+    if(new_parent_inode.size > 4 * M)
+	return -ENOMEM;
 
     getfilename(path, child_filename);
     getfilename(newpath, new_child_filename);
@@ -1252,14 +1423,12 @@ int p6fs_rename(const char *path, const char *newpath)
 int p6fs_statfs(const char *path, struct statvfs *statInfo)
 {
     /*print fs status and statistics */
-    statInfo->f_bavail = glo_superblock.available_blocks;  // free blocks
-    statInfo->f_bfree = glo_superblock.available_blocks;   // free blocks
-    statInfo->f_blocks = INODE_NUM;                        // number of blocks
-    statInfo->f_bsize = SECTOR_SIZE;                       // block size
-//    statInfo->f_favail = 456;
-    statInfo->f_ffree = glo_superblock.available_inodes;   // unused inodes
-    statInfo->f_files = glo_superblock.available_inodes;   // total number of inodes
-//    statInfo->f_frsize =123;
+    statInfo->f_bavail = INODE_NUM; 
+    statInfo->f_bfree  = glo_superblock.available_blocks - (INODE_BLOCKS+2);
+    statInfo->f_blocks = INODE_NUM;       // total blocks
+    statInfo->f_bsize  = SECTOR_SIZE;
+    statInfo->f_ffree  = glo_superblock.available_inodes-1;
+    statInfo->f_files  = INODE_NUM;
     return 0;
 }
 
