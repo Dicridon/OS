@@ -1256,6 +1256,7 @@ int p6fs_read(const char *path, char *buf, size_t size, off_t offset, struct fus
 
 static int writeregfile(const char *buf, long size, off_t offset, unsigned int *pointers, int blocks){
     unsigned char buffer[SECTOR_SIZE];
+    memset(buffer, 0, SECTOR_SIZE);
     int bytes = 0;
     int index = 0;
     int copysize;
@@ -1270,6 +1271,7 @@ static int writeregfile(const char *buf, long size, off_t offset, unsigned int *
 	copysize = (SECTOR_SIZE > size) ? size : SECTOR_SIZE;
 	memcpy(buffer, buf+offset%SECTOR_SIZE + (index-1)*SECTOR_SIZE, copysize);
 	device_write_sector(buffer, pointers[index]);
+	memset(buffer, 0, SECTOR_SIZE);	
 	bytes += copysize;
 	size -= copysize;
     }
@@ -1456,13 +1458,19 @@ int p6fs_write(const char *path, const char *buf, size_t size, off_t offset, str
 	extend_file(fd->inode_num, blocks_needed);
 	read_file_pointers(block_pointers, 0, blocks_needed, fd->inode_num);
     }
+    
     update_metadata(0);
     pthread_mutex_unlock(&bitmap_lock);
     pthread_mutex_unlock(&inode_lock);
     
     bytes = writeregfile(buf, size, offset, block_pointers, blocks_needed);
+    fd->node->size = bytes;
     free(block_pointers);
     return bytes;
+}
+
+static int set_zeros(int start, int end){
+    return 0;
 }
 
 int p6fs_truncate(const char *path, off_t newSize)
@@ -1472,9 +1480,22 @@ int p6fs_truncate(const char *path, off_t newSize)
 	return -ENOENT;
     if(newSize < 0 || (unsigned long)newSize > 3 * G)
 	return -EINVAL;
+
+    pthread_mutex_lock(&bitmap_lock);
+    pthread_mutex_lock(&inode_lock);
     
     int blocks_needed = newSize / SECTOR_SIZE + (newSize % SECTOR_SIZE != 0);
-    shrink(inode_num, blocks_needed);
+    if(inode_table[inode_num].size > newSize)
+	shrink(inode_num, blocks_needed);
+    else if(inode_table[inode_num].size < newSize){
+	int blocks_needed = newSize / SECTOR_SIZE + (newSize % SECTOR_SIZE != 0);
+	extend_file(inode_num, blocks_needed);
+	set_zeros(inode_table[inode_num].size, newSize);
+    }
+    inode_table[inode_num].size = newSize;
+    update_metadata(inode_num == ROOT_INODE);
+    pthread_mutex_unlock(&bitmap_lock);
+    pthread_mutex_unlock(&inode_lock);
     return 0;
 }
 
