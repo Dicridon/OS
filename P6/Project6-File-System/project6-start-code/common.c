@@ -1110,7 +1110,6 @@ int p6fs_open(const char *path, struct fuse_file_info *fileInfo)
 
 //    if((fd_table[i].flag & 3) != O_RDONLY)
 //	return -EACCES;
-    
     //check open flags, such as O_RDONLY
     //O_CREATE is tansformed to mknod() + open() by fuse ,so no need to create file here
     /*
@@ -1212,6 +1211,10 @@ int p6fs_read(const char *path, char *buf, size_t size, off_t offset, struct fus
     int file_blocks;    // blocks a file really occupies
     int available_blocks;
     unsigned int *block_pointers = NULL;
+
+    if((fileInfo->flags & O_WRONLY) == O_WRONLY)
+	return -EACCES;
+    
     if(!fd->allocated)
 	return -ENOMEM;
     /*
@@ -1415,6 +1418,9 @@ static void extend_file(int inode_num, int blocks_needed){
 */
 int p6fs_write(const char *path, const char *buf, size_t size, off_t offset, struct fuse_file_info *fileInfo)
 {
+    if((fileInfo->flags & 0x3) == O_RDONLY)
+	return -EACCES;
+    
     struct file_info *fd = (struct file_info *)fileInfo->fh;
     int blocks_owned = fd->node->size / SECTOR_SIZE + (fd->node->size % SECTOR_SIZE != 0);
     int blocks_needed = (offset + size) / SECTOR_SIZE + ((size + offset) % SECTOR_SIZE != 0);
@@ -1425,7 +1431,6 @@ int p6fs_write(const char *path, const char *buf, size_t size, off_t offset, str
     int end_point_in_end_block;
     int total_blocks;
     int file_blocks;    // blocks a file really occupies
-    int available_blocks;
     unsigned int *block_pointers = NULL;
     if(!fd->allocated)
 	return -ENOMEM;
@@ -1436,8 +1441,6 @@ int p6fs_write(const char *path, const char *buf, size_t size, off_t offset, str
 
     file_blocks = (fd->node->size / SECTOR_SIZE) + (fd->node->size % SECTOR_SIZE != 0);
     total_blocks = end_block - start_block + 1;
-    available_blocks = file_blocks - start_block + 1;
-    total_blocks = (available_blocks <= total_blocks) ? available_blocks : total_blocks;
     
     block_pointers = (unsigned int *)malloc(total_blocks);
     if(block_pointers == NULL){
@@ -1448,15 +1451,15 @@ int p6fs_write(const char *path, const char *buf, size_t size, off_t offset, str
     pthread_mutex_lock(&inode_lock);
     
     if(blocks_needed == blocks_owned){
-	read_file_pointers(block_pointers, 0, blocks_needed, fd->inode_num);
+	read_file_pointers(block_pointers, start_block, total_blocks, fd->inode_num);
     }
     else if(blocks_needed < blocks_owned){
-	read_file_pointers(block_pointers, 0, blocks_needed, fd->inode_num);
+	read_file_pointers(block_pointers, start_block, total_blocks, fd->inode_num);
 	shrink(fd->inode_num, blocks_needed);
     }
     else{
 	extend_file(fd->inode_num, blocks_needed);
-	read_file_pointers(block_pointers, 0, blocks_needed, fd->inode_num);
+	read_file_pointers(block_pointers, start_block, total_blocks, fd->inode_num);
     }
     
     update_metadata(0);
@@ -1469,13 +1472,26 @@ int p6fs_write(const char *path, const char *buf, size_t size, off_t offset, str
     return bytes;
 }
 
-static int set_zeros(int start, int end){
+static int set_zeros(unsigned int *pointers, int total_blocks, int inode_num){
+    int offset = inode_table[inode_num].size % SECTOR_SIZE;
+    unsigned char buffer[SECTOR_SIZE];
+    device_read_sector(buffer, pointers[0]);
+    memset(buffer+offset, 0, SECTOR_SIZE-offset-1);
+    device_write_sector(buffer, pointers[0]);
+    memset(buffer, 0, SECTOR_SIZE);
+    for(int i = 1; i < total_blocks; i++){
+	device_write_sector(buffer, pointers[i]);
+    }
+    device_flush();
     return 0;
 }
 
 int p6fs_truncate(const char *path, off_t newSize)
 {
     int inode_num = pathref(path, CHILD);
+    int filesize = inode_table[inode_num].size;
+    int blocks_needed = newSize / SECTOR_SIZE + (newSize % SECTOR_SIZE != 0);
+    int blocks_ownd = filesize / SECTOR_SIZE + (filesize % SECTOR_SIZE != 0);
     if(inode_num == -ENOENT)
 	return -ENOENT;
     if(newSize < 0 || (unsigned long)newSize > 3 * G)
@@ -1483,14 +1499,20 @@ int p6fs_truncate(const char *path, off_t newSize)
 
     pthread_mutex_lock(&bitmap_lock);
     pthread_mutex_lock(&inode_lock);
-    
-    int blocks_needed = newSize / SECTOR_SIZE + (newSize % SECTOR_SIZE != 0);
+
+
     if(inode_table[inode_num].size > newSize)
 	shrink(inode_num, blocks_needed);
     else if(inode_table[inode_num].size < newSize){
-	int blocks_needed = newSize / SECTOR_SIZE + (newSize % SECTOR_SIZE != 0);
 	extend_file(inode_num, blocks_needed);
-	set_zeros(inode_table[inode_num].size, newSize);
+	unsigned int *pointers = malloc(blocks_needed-blocks_ownd);
+	if(pointers == NULL){
+	    pthread_mutex_unlock(&bitmap_lock);
+	    pthread_mutex_unlock(&inode_lock);
+	    return -ENOMEM;	    
+	}
+	read_file_pointers(pointers, blocks_ownd-1, blocks_needed-blocks_ownd, inode_num);
+	set_zeros(pointers,  blocks_needed-blocks_ownd, inode_num);
     }
     inode_table[inode_num].size = newSize;
     update_metadata(inode_num == ROOT_INODE);
