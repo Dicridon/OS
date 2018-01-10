@@ -583,9 +583,11 @@ static int pathref(const char* path, int parent){
 	    }
 	}
 	// update hash table
-	strcpy(name_hash[name_index].file_name, token);
-	name_hash[name_index].ino = inode_num;
-	hashed = 1;
+	if(!hashed){
+	    strcpy(name_hash[name_index].file_name, token);
+	    name_hash[name_index].ino = inode_num;
+	    hashed = 1;
+	}
 	
 	getinode(&tempinode, inode_num);
 	tempdir.dir_size = tempinode.size;
@@ -651,6 +653,11 @@ static int remove_entry(struct inode_t *parent_inode, int parent_inode_num, cons
 		 inode_table[parent_inode_num].direct_pointer,
 		 inode_table[parent_inode_num].one_level_pointer);
     free(fip);
+
+    // release hash table
+    int name_index = str2index(filename);
+    memset(&name_hash[name_index], 0, FILENAME_MAX);
+    
     device_flush();
     return 0;
 }
@@ -727,6 +734,10 @@ static int remove_entry_and_restore(struct inode_t *parent_inode, int parent_ino
 		 inode_table[parent_inode_num].size,
 		 inode_table[parent_inode_num].direct_pointer,
 		 inode_table[parent_inode_num].one_level_pointer);
+    // release hash table
+    int name_index = str2index(filename);
+    memset(&name_hash[name_index], 0, FILENAME_MAX);
+    
     device_flush();
     free(fip);
     fip = NULL;
@@ -1111,12 +1122,6 @@ int p6fs_unlink(const char *path)
 
 int p6fs_open(const char *path, struct fuse_file_info *fileInfo)
 {
- /*
-  Implemention Example:
-  S1: look up and get dentry of the path
-  S2: create file handle! Do NOT lookup in read() or write() later
-  */
-
     int inode_num = pathref(path, CHILD);
 
     if(inode_num == -ENOENT)
@@ -1141,13 +1146,7 @@ int p6fs_open(const char *path, struct fuse_file_info *fileInfo)
     fd_table[i].allocated = 1;
     fd_table[i].flag = fileInfo->flags;
     fd_table[i].inode_num = inode_num;
-    
     //assign and init your file handle
-//    struct file_info *fi;
-
-//    if((fd_table[i].flag & 3) != O_RDONLY)
-//	return -EACCES;
-    //check open flags, such as O_RDONLY
     //O_CREATE is tansformed to mknod() + open() by fuse ,so no need to create file here
     /*
      if(fileInfo->flags & O_RDONLY){
@@ -1504,7 +1503,7 @@ int p6fs_write(const char *path, const char *buf, size_t size, off_t offset, str
     pthread_mutex_unlock(&inode_lock);
     
     bytes = writeregfile(buf, size, offset, block_pointers, blocks_needed);
-    fd->node->size = bytes;
+    fd->node->size = offset+size+1;
     free(block_pointers);
     return bytes;
 }
