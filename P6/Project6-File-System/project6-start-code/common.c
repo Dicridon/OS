@@ -114,15 +114,51 @@ struct dentry rootdir;
 struct dentry workdir;
 struct superblock_t glo_superblock;
 struct file_info fd_table[MAX_OPEN_FILE] ;
+struct file_inode name_hash[MAX_OPEN_FILE];
 
 pthread_mutex_t bitmap_lock;  // lock both inode_bitmap and dblock_bitmap
 pthread_mutex_t inode_lock;
+
+
+// DO allocate sapce for char *name
+static void getfilename(const char* path, char* filename){
+    char* name = path + strlen(path);
+    if(*(name-1) == '/'){
+	*filename = '/';
+	return;
+    }
+
+    while(*name != '/')
+	name--;
+    name++;
+    // filename has at most 60 characters including ones null terminator
+    if(strlen(name) > 59){
+	*filename = '\0';
+	return;
+    }
+    
+    strcpy(filename, name);
+}
+
+
+// this hash is just a cache like stuff, so conflicting will causes substitution
+static int str2index(const char *name){
+    char *walk = name;
+    int seed = 131;
+    unsigned int hash = 0;
+    while(*walk){
+	hash = hash * seed + (*walk);
+	walk++;
+    }
+    return hash % MAX_OPEN_FILE;
+}
 
 
 // please allocate some memory to fip before calling function readdirfile
 // this function will read whole dirctory into fip
 // so specify directory size dirsize(bytes)
 // pass the direct pointers and one-level pointer to base and ref
+
 static void readdirfile(struct file_inode* fip, unsigned int dirsize, unsigned int* base, unsigned int ref){
     unsigned int blocks = dirsize / SECTOR_SIZE;
     blocks += (dirsize % SECTOR_SIZE != 0);
@@ -487,6 +523,8 @@ static void nullptrcheck(void* p){
 }
 
 static int pathref(const char* path, int parent){
+    int name_index;
+    int hashed = 1;
     char* innerpath = (char*)malloc(strlen(path) * sizeof(char));
     const struct dentry *currdir;
     char* token;
@@ -517,8 +555,15 @@ static int pathref(const char* path, int parent){
     token = strtok(innerpath, "/");
     currdir = &rootdir;
     while(token != NULL){
+	name_index = str2index(token);
 	items = currdir->dir_size / sizeof(struct file_inode);
 	for(i = 0; i < items; i++){
+	    if(strcmp(name_hash[name_index].file_name, token) == 0){
+		inode_num = name_hash[name_index].ino;
+		find = 1;
+		break;
+	    }
+	    hashed = 0;
 	    if(strcmp(currdir->fi[i].file_name, token) == 0){
 		inode_num = currdir->fi[i].ino;
 		find = 1;
@@ -537,6 +582,11 @@ static int pathref(const char* path, int parent){
 		break;
 	    }
 	}
+	// update hash table
+	strcpy(name_hash[name_index].file_name, token);
+	name_hash[name_index].ino = inode_num;
+	hashed = 1;
+	
 	getinode(&tempinode, inode_num);
 	tempdir.dir_size = tempinode.size;
 	tempdir.ino = inode_num;
@@ -556,20 +606,7 @@ static int pathref(const char* path, int parent){
 }
 
 
-// DO allocate sapce for char *name
-static void getfilename(const char* path, char* filename){
-    char* name = path + strlen(path);
-    while(*name != '/')
-	name--;
-    name++;
-    // filename has at most 60 characters including ones null terminator
-    if(strlen(name) > 59){
-	*filename = '\0';
-	return;
-    }
-    
-    strcpy(filename, name);
-}
+
 
 static int remove_entry(struct inode_t *parent_inode, int parent_inode_num, const char* filename){
     struct file_inode *fip = (struct file_inode*)malloc(parent_inode->size);
@@ -1600,8 +1637,8 @@ int p6fs_chmod(const char *path, mode_t mode){
     inode_table[inode_num].access_mod = mode;
     update_metadata(inode_num == ROOT_INODE);
     device_flush();
-    pthread_mutex_lock(&bitmap_lock);
-    pthread_mutex_lock(&inode_lock);
+    pthread_mutex_unlock(&bitmap_lock);
+    pthread_mutex_unlock(&inode_lock);
     return 0;
 } //optional
 
@@ -1863,6 +1900,10 @@ void* p6fs_init(struct fuse_conn_info *conn)
 	}
     }
 
+    for(int i = 0; i < MAX_OPEN_FILE; i++){
+	*name_hash[i].file_name = '\0';
+	name_hash[i].ino = -1;
+    }
     p6_mount(&glo_superblock);
     /*HOWTO use @return
      struct fuse_context *fuse_con = fuse_get_context();
