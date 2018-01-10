@@ -1300,7 +1300,7 @@ static int writeregfile(const char *buf, long size, off_t offset, unsigned int *
     int index = 0;
     int copysize;
     device_read_sector(buffer, pointers[0]);
-    copysize = (SECTOR_SIZE - offset - 1 > size) ? size : SECTOR_SIZE-offset-1;
+    copysize = (SECTOR_SIZE - offset > size) ? size : SECTOR_SIZE-offset;
     bytes += copysize;
     memcpy(buffer+(offset % SECTOR_SIZE),
 	   buf,
