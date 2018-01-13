@@ -548,6 +548,7 @@ static int pathref(const char* path, int parent){
     innerpath = (char*)malloc(strlen(path) * sizeof(char));
     nullptrcheck(innerpath);
 
+//    struct file_inode[]
     tempdir.fi = (struct file_inode*)malloc(1028*128*sizeof(struct file_inode));
     nullptrcheck(tempdir.fi);
 
@@ -1272,7 +1273,7 @@ int p6fs_read(const char *path, char *buf, size_t size, off_t offset, struct fus
 
     file_blocks = (fd->node->size / SECTOR_SIZE) + (fd->node->size % SECTOR_SIZE != 0);
     total_blocks = end_block - start_block + 1;
-    available_blocks = file_blocks - start_block + 1;
+    available_blocks = file_blocks;
     total_blocks = (available_blocks <= total_blocks) ? available_blocks : total_blocks;
     
     block_pointers = (unsigned int *)malloc(total_blocks);
@@ -1300,11 +1301,11 @@ static int writeregfile(const char *buf, long size, off_t offset, unsigned int *
     int index = 0;
     int copysize;
     device_read_sector(buffer, pointers[0]);
-    copysize = (SECTOR_SIZE - offset > size) ? size : SECTOR_SIZE-offset;
+    copysize = (SECTOR_SIZE - offset%SECTOR_SIZE > size) ? size : SECTOR_SIZE-offset%SECTOR_SIZE;
     bytes += copysize;
     memcpy(buffer+(offset % SECTOR_SIZE),
 	   buf,
-	   (SECTOR_SIZE-offset) > size ? size : SECTOR_SIZE-offset);
+	   (SECTOR_SIZE - offset % SECTOR_SIZE) > size ? size : SECTOR_SIZE - offset % SECTOR_SIZE);
     device_write_sector(buffer, pointers[index++]);
     for(; index < blocks; index++){
 	copysize = (SECTOR_SIZE > size) ? size : SECTOR_SIZE;
@@ -1383,8 +1384,8 @@ static void extend_file(int inode_num, int blocks_needed){
     // direct pointers
     if(blocks_owned < 4){
 	for(int i = blocks_owned; i < 4 && blocks_needed > 0; i++){
-	    slot = bitmap_lookup(dblock_bitmap) + DBLOCK_BASE;
-	    inode_table[inode_num].direct_pointer[i] = slot;
+	    slot = bitmap_lookup(dblock_bitmap);
+	    inode_table[inode_num].direct_pointer[i] = slot  + DBLOCK_BASE;
 	    write_bitmap_bit(slot, dblock_bitmap);
 	    blocks_needed--;
 	}
@@ -1393,15 +1394,15 @@ static void extend_file(int inode_num, int blocks_needed){
     // one-level-pointers
     if(blocks_needed > 0 && blocks_owned < 1028){
 	if(blocks_owned == 4){
-	    slot = bitmap_lookup(dblock_bitmap) + DBLOCK_BASE;
-	    inode_table[inode_num].one_level_pointer = slot;
+	    slot = bitmap_lookup(dblock_bitmap);
+	    inode_table[inode_num].one_level_pointer = slot + DBLOCK_BASE;
 	    write_bitmap_bit(slot, dblock_bitmap);
 	}
 	device_read_sector((unsigned char *)one_level_pointers,
 			   inode_table[inode_num].one_level_pointer);
 	for(int i = blocks_owned-4; i < 1024 && blocks_needed > 0; i++){
-	    slot = bitmap_lookup(dblock_bitmap) + DBLOCK_BASE;
-	    one_level_pointers[i] = slot;
+	    slot = bitmap_lookup(dblock_bitmap);
+	    one_level_pointers[i] = slot + DBLOCK_BASE;
 	    write_bitmap_bit(slot, dblock_bitmap);
 	    blocks_needed--;
 	}
@@ -1414,22 +1415,22 @@ static void extend_file(int inode_num, int blocks_needed){
     if(blocks_needed > 0){
 	unsigned int buffer[SECTOR_SIZE/4];
 	if(blocks_owned == 1028){
-	    slot = bitmap_lookup(dblock_bitmap) + DBLOCK_BASE;
-	    inode_table[inode_num].two_level_pointer = slot;
+	    slot = bitmap_lookup(dblock_bitmap);
+	    inode_table[inode_num].two_level_pointer = slot + DBLOCK_BASE;
 	    write_bitmap_bit(slot, dblock_bitmap);
 	}
 	device_read_sector((unsigned char *)pointers_to_two_level_pointers,
 			   inode_table[inode_num].two_level_pointer);
 
 	for(int j = (blocks_owned - 1028) / 1024; j < 1024 && blocks_needed > 0; j++){
-	    slot = bitmap_lookup(dblock_bitmap) + DBLOCK_BASE;
-	    pointers_to_two_level_pointers[j] = slot;
+	    slot = bitmap_lookup(dblock_bitmap);
+	    pointers_to_two_level_pointers[j] = slot + DBLOCK_BASE;
 	    write_bitmap_bit(slot, dblock_bitmap);
 	    for(int i = (firsttime) ? (blocks_owned - 1028) % 1024 : 0; i < 1024 && blocks_needed > 0; i++){
 		device_read_sector((unsigned char *)buffer,
 				   pointers_to_two_level_pointers[j]);
-		slot = bitmap_lookup(dblock_bitmap) + DBLOCK_BASE;
-		buffer[i] = slot;
+		slot = bitmap_lookup(dblock_bitmap);
+		buffer[i] = slot + DBLOCK_BASE;
 		write_bitmap_bit(slot, dblock_bitmap);
 		blocks_needed--;
 	    }
@@ -1497,13 +1498,12 @@ int p6fs_write(const char *path, const char *buf, size_t size, off_t offset, str
 	extend_file(fd->inode_num, blocks_needed);
 	read_file_pointers(block_pointers, start_block, total_blocks, fd->inode_num);
     }
-    
-    update_metadata(0);
+    fd->node->size = offset+size < fd->node->size ? fd->node->size : offset+size;    
+    update_metadata(1);
     pthread_mutex_unlock(&bitmap_lock);
     pthread_mutex_unlock(&inode_lock);
     
-    bytes = writeregfile(buf, size, offset, block_pointers, blocks_needed);
-    fd->node->size = offset+size+1;
+    bytes = writeregfile(buf, size, offset, block_pointers, total_blocks);
     free(block_pointers);
     return bytes;
 }
@@ -1547,8 +1547,8 @@ int p6fs_truncate(const char *path, off_t newSize)
 	    pthread_mutex_unlock(&inode_lock);
 	    return -ENOMEM;	    
 	}
-	read_file_pointers(pointers, blocks_ownd-1, blocks_needed-blocks_ownd, inode_num);
-	set_zeros(pointers,  blocks_needed-blocks_ownd, inode_num);
+//	read_file_pointers(pointers, blocks_ownd-1, blocks_needed-blocks_ownd, inode_num);
+//	set_zeros(pointers,  blocks_needed-blocks_ownd, inode_num);
     }
     inode_table[inode_num].size = newSize;
     update_metadata(inode_num == ROOT_INODE);
@@ -1879,6 +1879,7 @@ void* p6fs_init(struct fuse_conn_info *conn)
     struct superblock_t ssp;
     unsigned char buffer[SECTOR_SIZE];
     char *diskpath = "/home/frostfall/Desktop/OSLabFile/Github/P6/Project6-File-System/project6-start-code/DISK";
+//    char *diskpath = "/dev/mmcblk0";
     if(device_open(diskpath) != 0){
 	printf("Invalid disk\n");
 	exit(-1);
@@ -1932,8 +1933,3 @@ void p6fs_destroy(void* private_data)
     logging_close();
 }
 
-
-
-unsigned int path_ref(const char *path){
-
-}
