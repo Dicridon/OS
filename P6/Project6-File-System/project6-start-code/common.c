@@ -1178,30 +1178,31 @@ static void read_file_pointers(unsigned int *pointers, int start_block, int tota
     int index_in_pointers = 0;
     if(start_block < 4){
 	for(int i = 0; i+start_block < 4 && total_blocks > 0; i++){
-	    pointers[index_in_pointers++] = direct_pointers[i+start_block];
+	    pointers[index_in_pointers++] = direct_pointers[i];
 	    total_blocks--;
 	}
     }
 
     // copy one-level-pointers
-    start_block -= 4;   // if start block is in one-level-indexing blocks
+    // if start block is in one-level-indexing blocks
+    start_block = (start_block - 4 < 0) ? 0 : start_block-4;
     if(total_blocks > 0){
-	for(int i = 0; i + start_block < 1024 && total_blocks > 0; i++){
+	for(int i = 0; i < 1024 && total_blocks > 0; i++){
 	    pointers[index_in_pointers++] = one_level_pointers[i+start_block];
 	    total_blocks--;
 	}
     }
 
     // copy two-level-pointers
-    start_block -= 1024;
+    start_block = (start_block - 1024 < 0) ? 0 : start_block-1024;
     int firsttime = 1; // pretend that all the two-level-pointers are in a single array
     if(total_blocks > 0){
 	unsigned int two_level_pointers[SECTOR_SIZE/4];
-	for(int j = start_block / 1024; j < 1024 && total_blocks > 0; j++){
+	for(int j = 0; j < 1024 && total_blocks > 0; j++){
 	    device_read_sector((unsigned char *)two_level_pointers,
 			       pointers_to_two_level_pointers[j]);
 	    for(int i = (firsttime) ? start_block % 1024 : 0; i < 1024 && total_blocks > 0; i++){
-		pointers[index_in_pointers++] = two_level_pointers[i];
+		pointers[index_in_pointers++] = two_level_pointers[i+start_block];
 		total_blocks--;
 	    }
 	    firsttime = 0;     // must set it to zero
@@ -1209,7 +1210,7 @@ static void read_file_pointers(unsigned int *pointers, int start_block, int tota
     }
 }
 
-static int readregfile(char *buf, unsigned int block_offset, long size, unsigned int *pointers, int blocks){
+static int readregfile(char *buf, unsigned int block_offset, long size, const unsigned int *pointers, int blocks){
     unsigned char buffer[SECTOR_SIZE];
     int index = 0;
     unsigned int bytes = 0;
@@ -1217,8 +1218,8 @@ static int readregfile(char *buf, unsigned int block_offset, long size, unsigned
     device_read_sector(buffer, pointers[index++]);
     memcpy(buf,
 	   buffer+block_offset,
-	   (SECTOR_SIZE - block_offset> size) ? size : SECTOR_SIZE-block_offset);
-    if(size <= SECTOR_SIZE-block_offset)
+	   (SECTOR_SIZE - block_offset%SECTOR_SIZE> size) ? size : SECTOR_SIZE-block_offset%SECTOR_SIZE);
+    if(size <= SECTOR_SIZE-block_offset%SECTOR_SIZE)
 	return size;
 
     // read rest blocks
@@ -1261,7 +1262,7 @@ int p6fs_read(const char *path, char *buf, size_t size, off_t offset, struct fus
       then compute which blocks will be used according to size and offset, then we just read those 
       blocks using device_read.
      */
-    if(offset > fd->node->size || fd->node->size == 0){
+    if(offset >= fd->node->size || fd->node->size == 0){
 	memset(buf, 0, size);
 	return 0;
     }
@@ -1275,8 +1276,11 @@ int p6fs_read(const char *path, char *buf, size_t size, off_t offset, struct fus
     total_blocks = end_block - start_block + 1;
     available_blocks = file_blocks;
     total_blocks = (available_blocks <= total_blocks) ? available_blocks : total_blocks;
-    
+
+    // attention
     block_pointers = (unsigned int *)malloc(total_blocks);
+    if(block_pointers == NULL)
+	return -ENOMEM;
 
     // code above limit block access with blocks a file really have strctly
     // so below may read all the needed pointers sequently safely
