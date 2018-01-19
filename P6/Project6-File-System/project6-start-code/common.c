@@ -589,15 +589,17 @@ static int pathref(const char* path, int parent){
 	    name_hash[name_index].ino = inode_num;
 	    hashed = 1;
 	}
-	
+
 	getinode(&tempinode, inode_num);
-	tempdir.dir_size = tempinode.size;
-	tempdir.ino = inode_num;
-	readdirfile(tempdir.fi,
-		    tempdir.dir_size,
-		    tempinode.direct_pointer,
-		    tempinode.one_level_pointer);
-	currdir = &tempdir;
+	if(tempinode.mode == DIR_T){
+	    tempdir.dir_size = tempinode.size;
+	    tempdir.ino = inode_num;
+	    readdirfile(tempdir.fi,
+			tempdir.dir_size,
+			tempinode.direct_pointer,
+			tempinode.one_level_pointer);
+	    currdir = &tempdir;
+	}
 	token = strtok(NULL, "/");
 	token_num--;
 	find = 0;
@@ -1418,6 +1420,7 @@ static void extend_file(int inode_num, int blocks_needed){
     int firsttime = 1;
     if(blocks_needed > 0){
 	unsigned int buffer[SECTOR_SIZE/4];
+	memset(buffer, 0, SECTOR_SIZE);
 	if(blocks_owned == 1028){
 	    slot = bitmap_lookup(dblock_bitmap);
 	    inode_table[inode_num].two_level_pointer = slot + DBLOCK_BASE;
@@ -1427,9 +1430,11 @@ static void extend_file(int inode_num, int blocks_needed){
 			   inode_table[inode_num].two_level_pointer);
 
 	for(int j = (blocks_owned - 1028) / 1024; j < 1024 && blocks_needed > 0; j++){
-	    slot = bitmap_lookup(dblock_bitmap);
-	    pointers_to_two_level_pointers[j] = slot + DBLOCK_BASE;
-	    write_bitmap_bit(slot, dblock_bitmap);
+	    if((blocks_owned - 1028) % 1024 == 0){
+		slot = bitmap_lookup(dblock_bitmap);
+		pointers_to_two_level_pointers[j] = slot + DBLOCK_BASE;
+		write_bitmap_bit(slot, dblock_bitmap);
+	    }
 	    for(int i = (firsttime) ? (blocks_owned - 1028) % 1024 : 0; i < 1024 && blocks_needed > 0; i++){
 		device_read_sector((unsigned char *)buffer,
 				   pointers_to_two_level_pointers[j]);
@@ -1438,6 +1443,8 @@ static void extend_file(int inode_num, int blocks_needed){
 		write_bitmap_bit(slot, dblock_bitmap);
 		blocks_needed--;
 	    }
+	    device_write_sector((unsigned char* )pointers_to_two_level_pointers,
+				inode_table[inode_num].two_level_pointer);
 	    device_write_sector((unsigned char *)buffer, pointers_to_two_level_pointers[j]);
 	    firsttime = 0;
 	}
@@ -1461,7 +1468,7 @@ int p6fs_write(const char *path, const char *buf, size_t size, off_t offset, str
 {
     if((fileInfo->flags & 0x3) == O_RDONLY)
 	return -EACCES;
-    
+
     struct file_info *fd = (struct file_info *)fileInfo->fh;
     int blocks_owned = fd->node->size / SECTOR_SIZE + (fd->node->size % SECTOR_SIZE != 0);
     int blocks_needed = (offset + size) / SECTOR_SIZE + ((size + offset) % SECTOR_SIZE != 0);
@@ -1509,6 +1516,8 @@ int p6fs_write(const char *path, const char *buf, size_t size, off_t offset, str
     
     bytes = writeregfile(buf, size, offset, block_pointers, total_blocks);
     free(block_pointers);
+    DEBUG("p6fs_write: bytes: %d, offset: %d, size: %d, start_block: %d, end_block: %d",
+	  bytes, offset, size, start_block, end_block);
     return bytes;
 }
 
